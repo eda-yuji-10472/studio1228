@@ -79,7 +79,7 @@ const generateVideoFromTextFlow = ai.defineFlow(
 
     return {
       videoDataUri: proxied.dataUri,
-      usage: operation.output?.message?.usage,
+      usage: operation.usage,
     };
   }
 );

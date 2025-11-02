@@ -21,6 +21,7 @@ import { ref, uploadBytes, getDownloadURL, uploadString } from 'firebase/storage
 import { collection, addDoc, serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { logError } from '@/lib/logger';
 
 const formSchema = z.object({
   image: z.any().refine(file => file instanceof File, 'Please upload an image.'),
@@ -175,6 +176,7 @@ export function ImageToVideoForm() {
         title: 'Operation Failed',
         description: error.message || 'Something went wrong during the process. Please try again.',
       });
+      await logError(error, { context: 'ImageToVideoForm.onSubmit', userId: user.uid });
     } finally {
       setIsGenerating(false);
       setIsUploading(false);

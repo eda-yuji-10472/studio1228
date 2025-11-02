@@ -19,6 +19,7 @@ import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, serverTimestamp, setDoc, doc } from 'firebase/firestore';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
+import { logError } from '@/lib/logger';
 
 const formSchema = z.object({
   prompt: z.string().min(10, 'Prompt must be at least 10 characters long.'),
@@ -119,6 +120,7 @@ export function TextToVideoForm() {
         title: 'Generation Failed',
         description: error.message || 'Something went wrong while generating or saving your video. Please try again.',
       });
+      await logError(error, { context: 'TextToVideoForm.onSubmit', userId: user.uid });
     } finally {
       setIsGenerating(false);
     }

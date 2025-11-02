@@ -11,6 +11,7 @@
  * - /users/{userId}/videos/{videoId}: Stores metadata for videos owned by the user.
  * - /users/{userId}/images/{imageId}: Stores metadata for images owned by the user.
  * - /users/{userId}/prompts/{promptId}: Stores prompts created by the user.
+ * - /errors/{errorId}: Stores client-side error logs.
  *
  * Key Security Decisions:
  * - No user listing is allowed.
@@ -128,5 +129,22 @@ service cloud.firestore {
       allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
+    
+    /**
+     * @description Allows any authenticated user to create an error log entry.
+     * @path /errors/{errorId}
+     * @allow (create) Any authenticated user can write an error log.
+     * @deny (get, list, update, delete) Reading and modifying logs is not allowed for clients.
+     * @principle Enables client-side error logging for debugging purposes.
+     */
+    match /errors/{errorId} {
+      allow get: if false;
+      allow list: if false;
+      allow create: if request.auth != null;
+      allow update: if false;
+      allow delete: if false;
+    }
   }
 }
+
+    

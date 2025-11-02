@@ -219,50 +219,53 @@ export function ImageToImageForm() {
                     )}
                 </div>
             </div>
-            <FormField
-              control={form.control}
-              name="prompt"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Modification Prompt</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="e.g., Change the background to a sunny beach, add a hat on the person" 
-                      className="min-h-[100px] resize-y" 
-                      {...field}
-                      readOnly={!!generatedImage}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </CardContent>
-          <CardFooter className="flex justify-between">
+            
             {generatedImage ? (
-              <Button onClick={handleReset} type="button" variant="outline" size="lg">
-                <ArrowLeft className="mr-2" />
-                Generate Another
-              </Button>
+                <div className="flex justify-center">
+                    <Button onClick={handleReset} type="button" variant="outline" size="lg">
+                        <ArrowLeft className="mr-2" />
+                        Generate Another
+                    </Button>
+                </div>
             ) : (
-              <>
-                <PromptSuggestions originalPrompt={currentPrompt} onSelectSuggestion={(suggestion) => form.setValue('prompt', suggestion)} />
-                <Button type="submit" disabled={isButtonDisabled} size="lg">
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2" />
-                      Generate Image
-                    </>
-                  )}
-                </Button>
-              </>
+                <FormField
+                control={form.control}
+                name="prompt"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Modification Prompt</FormLabel>
+                    <FormControl>
+                        <Textarea 
+                        placeholder="e.g., Change the background to a sunny beach, add a hat on the person" 
+                        className="min-h-[100px] resize-y" 
+                        {...field}
+                        readOnly={!!generatedImage}
+                        />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
             )}
-          </CardFooter>
+          </CardContent>
+          {!generatedImage && (
+            <CardFooter className="flex justify-between">
+              <PromptSuggestions originalPrompt={currentPrompt} onSelectSuggestion={(suggestion) => form.setValue('prompt', suggestion)} />
+              <Button type="submit" disabled={isButtonDisabled} size="lg">
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2" />
+                    Generate Image
+                  </>
+                )}
+              </Button>
+            </CardFooter>
+          )}
         </form>
       </Form>
     </Card>

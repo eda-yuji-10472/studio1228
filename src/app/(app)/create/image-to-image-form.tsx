@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { generateImageFromImage } from '@/ai/flows/generate-image-from-image';
+import { generateImageFromImage, GenerateImageFromImageOutput } from '@/ai/flows/generate-image-from-image';
 import { useAppContext } from '@/contexts/app-context';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Sparkles, Upload, Wand2, ArrowLeft } from 'lucide-react';
@@ -110,7 +110,7 @@ export function ImageToImageForm() {
 
     try {
       addPromptItem({ text: values.prompt });
-      const result = await generateImageFromImage({ 
+      const result: GenerateImageFromImageOutput = await generateImageFromImage({ 
         photoDataUri: imagePreview, 
         prompt: values.prompt,
       });
@@ -164,12 +164,10 @@ export function ImageToImageForm() {
           });
         }
       } else {
-         if (result.finishReason) {
-          docUpdate.status = 'failed';
-          docUpdate.error = `Generation failed with reason: ${result.finishReason}`;
-          await updateDoc(newImageDocRef, docUpdate);
-        }
-        throw new Error(`Image generation failed to return an image. Reason: ${result.finishReason || 'unknown'}`);
+         docUpdate.status = 'failed';
+         docUpdate.error = `Generation failed with reason: ${result.finishReason || 'unknown'}`;
+         await updateDoc(newImageDocRef, docUpdate);
+         throw new Error(`Image generation failed to return an image. Reason: ${result.finishReason || 'unknown'}`);
       }
     } catch (error: any) {
       console.error(error);

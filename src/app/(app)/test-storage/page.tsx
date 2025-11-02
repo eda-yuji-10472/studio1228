@@ -11,12 +11,12 @@ import { useToast } from '@/hooks/use-toast';
 import { Beaker, Loader2, Image as ImageIcon, Link as LinkIcon, AlertCircle } from 'lucide-react';
 import Image from 'next/image';
 import { Input } from '@/components/ui/input';
+import { proxyFetch } from '@/ai/flows/proxy-fetch';
 
 // A simple 1x1 transparent PNG as a base64 data URL
 const TEST_PNG_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
 export default function StorageTestPage() {
-  const [isWriteLoading, setIsWriteLoading] = useState(false);
   const [isPngLoading, setIsPngLoading] = useState(false);
   const [retrievedImageUrl, setRetrievedImageUrl] = useState<string | null>(null);
   const { user, isLoading: isUserLoading } = useUser();
@@ -46,10 +46,10 @@ export default function StorageTestPage() {
       await uploadString(storageRef, TEST_PNG_DATA_URL, 'data_url');
       toast({ 
         title: 'Upload Successful', 
-        description: `Test PNG uploaded to ${storageRef.fullPath}. Now attempting to get data...` 
+        description: `Test PNG uploaded to ${storageRef.fullPath}. Now attempting to get data via SDK...` 
       });
 
-      // 2. Attempt to get the file's content as bytes (ArrayBuffer)
+      // 2. Attempt to get the file's content as bytes (ArrayBuffer) using the SDK
       const bytes = await getBytes(storageRef);
       
       // 3. Convert bytes to a Blob and create a local URL for display
@@ -59,7 +59,7 @@ export default function StorageTestPage() {
       setRetrievedImageUrl(localUrl);
       toast({
         title: 'Data Retrieval Successful',
-        description: 'Image should be visible below.',
+        description: 'Image fetched via SDK should be visible below.',
       });
 
     } catch (error: any) {
@@ -83,23 +83,20 @@ export default function StorageTestPage() {
     setFetchedImageUrl(null);
     setTestUrlError(null);
     try {
-        const response = await fetch(testUrl);
-        if (response.ok) {
-            // We got the image, let's turn it into a blob URL to display
-            const blob = await response.blob();
-            const localUrl = URL.createObjectURL(blob);
-            setFetchedImageUrl(localUrl);
-            toast({ title: 'Success', description: 'The URL was fetched successfully.'});
+        // Use the server-side proxy flow to bypass CORS
+        const result = await proxyFetch({ url: testUrl });
+        
+        if (result.dataUri) {
+            setFetchedImageUrl(result.dataUri);
+            toast({ title: 'Success', description: 'The URL was fetched successfully via proxy.'});
         } else {
-            // The server responded with an error status (e.g., 403, 404)
-            const errorText = await response.text();
-            setTestUrlError(`Fetch failed: Server responded with status ${response.status}. Response: ${errorText}`);
-            toast({ variant: 'destructive', title: 'Fetch Error', description: `Server responded with status ${response.status}`});
+            throw new Error('Proxy fetch returned no data.');
         }
+
     } catch (error: any) {
-        console.error("Direct URL Fetch Error:", error);
-        setTestUrlError(`Fetch failed: ${error.message}. This is likely a CORS issue or network problem. Check the browser console for more details.`);
-        toast({ variant: 'destructive', title: 'Fetch Failed', description: error.message });
+        console.error("Proxy URL Fetch Error:", error);
+        setTestUrlError(`Proxy fetch failed: ${error.message}. Check the server console for more details.`);
+        toast({ variant: 'destructive', title: 'Proxy Fetch Failed', description: error.message });
     } finally {
         setIsUrlLoading(false);
     }
@@ -117,9 +114,9 @@ export default function StorageTestPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Direct URL Fetch Test</CardTitle>
+              <CardTitle>URL Proxy Fetch Test</CardTitle>
               <CardDescription>
-                Paste a Firebase Storage URL (with token) to test if it can be fetched directly by the browser. This helps diagnose CORS or network issues.
+                Paste a URL to test if it can be fetched by the server-side proxy. This bypasses browser CORS issues.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -140,7 +137,7 @@ export default function StorageTestPage() {
                   ) : (
                     <>
                       <LinkIcon className="mr-2" />
-                      Test URL Fetch
+                      Test URL Fetch via Proxy
                     </>
                   )}
                 </Button>
@@ -165,11 +162,10 @@ export default function StorageTestPage() {
           
           <Card>
             <CardHeader>
-              <CardTitle>Storage R/W Test (.png)</CardTitle>
+              <CardTitle>SDK R/W Test (.png)</CardTitle>
               <CardDescription>
-                Attempts to upload a small PNG to{' '}
-                <code className="bg-muted px-1 py-0.5 rounded-sm text-sm">/test/test.png</code>,{' '}
-                then retrieve its data using the SDK's `getBytes` method and display it.
+                Uploads a PNG to <code className="bg-muted px-1 py-0.5 rounded-sm text-sm">/test/test.png</code>, 
+                then retrieves its data using the SDK's `getBytes` method.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -182,13 +178,13 @@ export default function StorageTestPage() {
                 ) : (
                   <>
                     <ImageIcon className="mr-2" />
-                    Run R/W Test (.png)
+                    Run SDK R/W Test
                   </>
                 )}
               </Button>
               {retrievedImageUrl && (
                  <div>
-                    <p className="text-sm font-medium">Image retrieved successfully:</p>
+                    <p className="text-sm font-medium">Image retrieved via SDK:</p>
                     <div className="mt-2 w-24 h-24 border rounded-md p-2">
                       <Image src={retrievedImageUrl} alt="Test PNG" width={96} height={96} unoptimized/>
                     </div>

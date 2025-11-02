@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Query,
   onSnapshot,
@@ -37,13 +37,26 @@ export interface InternalQuery extends Query<DocumentData> {
   }
 }
 
+/** A wrapper around useMemo that tags the returned value */
+export const useMemoFirebase = <T>(factory: () => T, deps: React.DependencyList | undefined): T => {
+    return useMemo(() => {
+        const value = factory();
+        if(value) {
+            (value as any).__memo = true;
+        }
+        return value;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, deps);
+};
+
+
 /**
  * React hook to subscribe to a Firestore collection or query in real-time.
  * Handles nullable references/queries.
  * 
  *
  * IMPORTANT! YOU MUST MEMOIZE the inputted memoizedTargetRefOrQuery or BAD THINGS WILL HAPPEN
- * use useMemo to memoize it per React guidence.  Also make sure that it's dependencies are stable
+ * use useMemoFirebase to memoize it per React guidence.  Also make sure that it's dependencies are stable
  * references
  *  
  * @template T Optional type for document data. Defaults to any.
@@ -62,11 +75,15 @@ export function useCollection<T = any>(
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
   useEffect(() => {
-    if (!memoizedTargetRefOrQuery) {
+    if (memoizedTargetRefOrQuery === undefined || memoizedTargetRefOrQuery === null) {
       setData(null);
       setIsLoading(false);
       setError(null);
       return;
+    }
+    
+    if(!memoizedTargetRefOrQuery.__memo) {
+        throw new Error('useCollection query must be memoized with useMemoFirebase');
     }
 
     setIsLoading(true);
@@ -107,8 +124,6 @@ export function useCollection<T = any>(
 
     return () => unsubscribe();
   }, [memoizedTargetRefOrQuery]); // Re-run if the target query/reference changes.
-  if(memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {
-    throw new Error(memoizedTargetRefOrQuery + ' was not properly memoized using useMemoFirebase');
-  }
+  
   return { data, isLoading, error };
 }

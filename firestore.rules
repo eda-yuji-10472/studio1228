@@ -11,6 +11,7 @@
  * - /users/{userId}/videos/{videoId}: Stores metadata for videos owned by the user.
  * - /users/{userId}/images/{imageId}: Stores metadata for images owned by the user.
  * - /users/{userId}/prompts/{promptId}: Stores prompts created by the user.
+ * - /users/{userId}/tests/{testId}: Stores documents for testing purposes.
  *
  * Key Security Decisions:
  * - No user listing is allowed.
@@ -127,6 +128,20 @@ service cloud.firestore {
       allow create: if isOwner(userId);
       allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Grants the user read/write access to their own test documents.
+     * @path /users/{userId}/tests/{testId}
+     * @allow (read, write) Authenticated user can create, read, update, and delete test documents under their own UID.
+     * @principle Enforces document ownership for all operations.
+     */
+    match /users/{userId}/tests/{testId} {
+       function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+      
+      allow read, write: if isOwner(userId);
     }
   }
 }

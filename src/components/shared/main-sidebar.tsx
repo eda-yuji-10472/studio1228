@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/sidebar';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Library, PlusCircle, Scissors, Bot, User as UserIcon, LogOut, Beaker } from 'lucide-react';
+import { Library, PlusCircle, Scissors, Bot, User as UserIcon, LogOut, Beaker, Flame } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase/auth/use-user';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Button } from '../ui/button';
@@ -132,18 +132,32 @@ export function MainSidebar() {
             </Link>
           </SidebarMenuItem>
            {process.env.NODE_ENV === 'development' && (
-            <SidebarMenuItem>
-              <Link href="/test-storage" passHref>
-                <SidebarMenuButton
-                  isActive={isActive('/test-storage')}
-                  tooltip="Storage Test"
-                  variant="ghost"
-                >
-                  <Beaker />
-                  <span className="truncate">Storage Test</span>
-                </SidebarMenuButton>
-              </Link>
-            </SidebarMenuItem>
+            <>
+              <SidebarMenuItem>
+                <Link href="/test-storage" passHref>
+                  <SidebarMenuButton
+                    isActive={isActive('/test-storage')}
+                    tooltip="Storage Test"
+                    variant="ghost"
+                  >
+                    <Beaker />
+                    <span className="truncate">Storage Test</span>
+                  </SidebarMenuButton>
+                </Link>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <Link href="/test-firestore" passHref>
+                  <SidebarMenuButton
+                    isActive={isActive('/test-firestore')}
+                    tooltip="Firestore Test"
+                    variant="ghost"
+                  >
+                    <Flame />
+                    <span className="truncate">Firestore Test</span>
+                  </SidebarMenuButton>
+                </Link>
+              </SidebarMenuItem>
+            </>
           )}
         </SidebarMenu>
       </SidebarContent>

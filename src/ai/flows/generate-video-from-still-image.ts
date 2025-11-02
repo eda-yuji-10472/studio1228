@@ -91,20 +91,18 @@ const generateVideoFromStillImageFlow = ai.defineFlow(
 );
 
 async function downloadVideoAndConvertToDataUri(video: MediaPart): Promise<string> {
-  const fetch = (await import('node-fetch')).default;
-  // Add API key before fetching the video.
-  const videoDownloadResponse = await fetch(
-    `${video.media!.url}&key=${process.env.GEMINI_API_KEY}`
-  );
-  if (
-    !videoDownloadResponse ||
-    videoDownloadResponse.status !== 200 ||
-    !videoDownloadResponse.body
-  ) {
-    throw new Error('Failed to fetch video');
+  if (!video.media?.url) {
+    throw new Error('Video media URL is missing.');
   }
 
-  const buffer = await videoDownloadResponse.arrayBuffer();
+  const response = await fetch(video.media.url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch video: ${response.status} ${response.statusText}`);
+  }
+
+  const buffer = await response.arrayBuffer();
   const base64 = Buffer.from(buffer).toString('base64');
-  return `data:video/mp4;base64,${base64}`;
+  const contentType = video.media.contentType || 'video/mp4';
+
+  return `data:${contentType};base64,${base64}`;
 }

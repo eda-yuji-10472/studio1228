@@ -3,7 +3,7 @@
 import type { MediaItem, PromptItem } from '@/lib/types';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
-const MAX_MEDIA_ITEMS = 2;
+const MAX_IMAGE_ITEMS = 10;
 const MAX_PROMPT_ITEMS = 10;
 
 interface AppContextType {
@@ -25,7 +25,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     try {
       const storedMedia = localStorage.getItem('mediaItems');
       if (storedMedia) {
-        setMediaItems(JSON.parse(storedMedia));
+        // We only store images now
+        const images = JSON.parse(storedMedia).filter((item: MediaItem) => item.type === 'image');
+        setMediaItems(images);
       }
       const storedPrompts = localStorage.getItem('promptHistory');
       if (storedPrompts) {
@@ -43,8 +45,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   useEffect(() => {
     if (isHydrated) {
       try {
-        const itemsToStore = mediaItems.slice(0, MAX_MEDIA_ITEMS);
-        localStorage.setItem('mediaItems', JSON.stringify(itemsToStore));
+        // Only persist images to local storage
+        const imagesToStore = mediaItems.filter(item => item.type === 'image').slice(0, MAX_IMAGE_ITEMS);
+        localStorage.setItem('mediaItems', JSON.stringify(imagesToStore));
       } catch (error) {
         console.error("Failed to save mediaItems to localStorage", error);
       }
@@ -59,7 +62,16 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, [promptHistory, isHydrated]);
 
   const addMediaItem = useCallback((item: Omit<MediaItem, 'id' | 'createdAt'>) => {
-    setMediaItems(prev => [{ ...item, id: new Date().toISOString(), createdAt: new Date().toISOString() }, ...prev].slice(0, MAX_MEDIA_ITEMS));
+    const newItem = { ...item, id: new Date().toISOString(), createdAt: new Date().toISOString() };
+    
+    // Videos are added to state for immediate viewing but not persisted long-term
+    if (item.type === 'video') {
+       setMediaItems(prev => [newItem, ...prev.filter(i => i.type === 'image')].slice(0, MAX_IMAGE_ITEMS + 1));
+       return;
+    }
+
+    // Images are added and will be persisted
+    setMediaItems(prev => [newItem, ...prev].slice(0, MAX_IMAGE_ITEMS));
   }, []);
 
   const addPromptItem = useCallback((item: Omit<PromptItem, 'id' | 'createdAt'>) => {

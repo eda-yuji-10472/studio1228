@@ -8,10 +8,79 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarTrigger,
+  SidebarFooter,
 } from '@/components/ui/sidebar';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Library, PlusCircle, Scissors, Bot } from 'lucide-react';
+import { Library, PlusCircle, Scissors, Bot, User as UserIcon, LogOut } from 'lucide-react';
+import { useAuth, useUser } from '@/firebase';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Button } from '../ui/button';
+import { Avatar, AvatarFallback } from '../ui/avatar';
+import { Skeleton } from '../ui/skeleton';
+
+function UserMenu() {
+    const { user, isUserLoading } = useUser();
+    const auth = useAuth();
+    const router = useRouter();
+
+    const handleSignOut = async () => {
+        await auth.signOut();
+        router.push('/login');
+    };
+
+    if (isUserLoading) {
+        return (
+            <div className="flex items-center gap-2 p-2">
+                <Skeleton className="h-8 w-8 rounded-full" />
+                <Skeleton className="h-4 w-24" />
+            </div>
+        );
+    }
+    
+    if (!user) {
+        return (
+             <Link href="/login" passHref>
+                <Button variant="ghost" className="w-full justify-start">
+                    <UserIcon className="mr-2" />
+                    Sign In
+                </Button>
+            </Link>
+        )
+    }
+
+    const getInitials = (email?: string | null) => {
+        return email ? email.substring(0, 2).toUpperCase() : '..';
+    }
+
+
+    return (
+        <Popover>
+            <PopoverTrigger asChild>
+                <Button variant="ghost" className="w-full justify-start gap-2 p-2 h-auto">
+                    <Avatar className="h-8 w-8">
+                        <AvatarFallback>{getInitials(user.email)}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col items-start truncate">
+                        <span className="text-sm font-medium truncate">{user.displayName || 'User'}</span>
+                        <span className="text-xs text-muted-foreground truncate">{user.email}</span>
+                    </div>
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-2">
+                <Button
+                    variant="ghost"
+                    className="w-full justify-start"
+                    onClick={handleSignOut}
+                >
+                    <LogOut className="mr-2" />
+                    Sign Out
+                </Button>
+            </PopoverContent>
+        </Popover>
+    )
+
+}
 
 export function MainSidebar() {
   const pathname = usePathname();
@@ -64,6 +133,9 @@ export function MainSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarContent>
+      <SidebarFooter>
+        <UserMenu />
+      </SidebarFooter>
     </Sidebar>
   );
 }

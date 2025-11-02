@@ -29,7 +29,7 @@ export default function StorageTestPage() {
     setIsTesting(true);
     setResult({});
     
-    const imagePath = `test/test.png`;
+    const imagePath = `users/${user.uid}/test/test-${Date.now()}.png`;
     const storageRef = ref(storage, imagePath);
 
     try {
@@ -72,10 +72,9 @@ export default function StorageTestPage() {
         <div className="grid gap-6">
           <Card>
             <CardHeader>
-              <CardTitle>Storage R/W Test (.png)</CardTitle>
+              <CardTitle>Storage R/W Test</CardTitle>
               <CardDescription>
-                Uploads a test PNG to <code className="bg-muted px-1 py-0.5 rounded-sm text-sm">/test/test.png</code>, 
-                then attempts to retrieve its public URL using the SDK's `getDownloadURL` method.
+                Uploads a test PNG to your user folder, then attempts to retrieve its public URL.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

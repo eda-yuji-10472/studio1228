@@ -14,7 +14,7 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.React-Node;
+  children: React.ReactNode;
 }>) {
   return (
     <html lang="en" className="dark">

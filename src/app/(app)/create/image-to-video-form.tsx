@@ -70,7 +70,7 @@ export function ImageToVideoForm() {
     setIsGenerating(true);
     setGeneratedVideo(null);
     
-    // 1. Create initial record in Firestore
+    // 1. Create initial record in Firestore for the video generation job
     const videosCollection = collection(firestore, 'users', user.uid, 'videos');
     const newVideoDocRef = doc(videosCollection);
     const initialVideoData = {
@@ -89,7 +89,7 @@ export function ImageToVideoForm() {
     };
     
     try {
-      // Ensure the initial record is created before doing anything else.
+      // Create the document first to track the process
       await setDoc(newVideoDocRef, initialVideoData).catch(error => {
         errorEmitter.emit(
           'permission-error',
@@ -103,7 +103,8 @@ export function ImageToVideoForm() {
       });
 
       // 2. Upload source image to get its URL for the thumbnail
-      const imageRef = ref(storage, `users/${user.uid}/images/${Date.now()}-${sourceImageFile.name}`);
+      const imageFileName = `${Date.now()}-${sourceImageFile.name}`;
+      const imageRef = ref(storage, `users/${user.uid}/images/${imageFileName}`);
       const imageUploadResult = await uploadBytes(imageRef, sourceImageFile);
       const sourceImageUrl = await getDownloadURL(imageUploadResult.ref);
       
@@ -123,7 +124,7 @@ export function ImageToVideoForm() {
         throw error;
       });
 
-      // 3. Generate video
+      // 3. Generate video using the uploaded image data URI
       addPromptItem({ text: values.prompt });
       const result = await generateVideoFromStillImage({ photoDataUri: imagePreview, prompt: values.prompt });
       
@@ -139,7 +140,7 @@ export function ImageToVideoForm() {
         const finalVideoData = {
           storageUrl: downloadURL,
           thumbnailUrl: sourceImageUrl, // Use the uploaded source image URL as the thumbnail
-          status: 'completed',
+          status: 'completed' as const,
           inputTokens: result.usage?.inputTokens || 0,
           outputTokens: result.usage?.outputTokens || 0,
           totalTokens: result.usage?.totalTokens || 0,
@@ -158,11 +159,10 @@ export function ImageToVideoForm() {
       }
     } catch (error: any) {
       console.error(error);
-      const errorData = { status: 'failed', error: error.message || 'Unknown error' };
-      // Update the doc with the error.
+      const errorData = { status: 'failed' as const, error: error.message || 'Unknown error' };
+      // Attempt to update the doc with the error status
       await updateDoc(newVideoDocRef, errorData).catch(updateError => {
         console.error("Failed to update doc with error state:", updateError);
-        // Log this failure too, as it's a separate problem.
         logError(updateError, { context: 'ImageToVideoForm.onSubmit.updateError', userId: user.uid });
       });
       

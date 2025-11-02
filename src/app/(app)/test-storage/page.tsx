@@ -2,40 +2,36 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/shared/page-header';
 import { useUser } from '@/firebase/auth/use-user';
 import { storage } from '@/firebase';
-import { ref, uploadString } from 'firebase/storage';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
-import { Beaker, Loader2 } from 'lucide-react';
+import { Beaker, Loader2, Image as ImageIcon } from 'lucide-react';
+import Image from 'next/image';
+
+// A simple 1x1 transparent PNG as a base64 data URL
+const TEST_PNG_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
 export default function StorageTestPage() {
-  const [isLoading, setIsLoading] = useState(false);
+  const [isWriteLoading, setIsWriteLoading] = useState(false);
+  const [isPngLoading, setIsPngLoading] = useState(false);
+  const [retrievedImageUrl, setRetrievedImageUrl] = useState<string | null>(null);
   const { user, isLoading: isUserLoading } = useUser();
   const { toast } = useToast();
 
   const handleTestUpload = async () => {
     if (isUserLoading) {
-        toast({
-            variant: 'destructive',
-            title: 'Please wait',
-            description: 'Authentication is still in progress.',
-        });
-        return;
+      toast({ variant: 'destructive', title: 'Please wait', description: 'Authentication is still in progress.' });
+      return;
     }
-      
     if (!user) {
-      toast({
-        variant: 'destructive',
-        title: 'Authentication Error',
-        description: 'You must be logged in to perform this action.',
-      });
+      toast({ variant: 'destructive', title: 'Authentication Error', description: 'You must be logged in to perform this action.' });
       return;
     }
 
-    setIsLoading(true);
-
+    setIsWriteLoading(true);
     const testContent = `This is a test file generated at ${new Date().toISOString()}. User ID: ${user.uid}`;
     const storageRef = ref(storage, `users/${user.uid}/test/test-${Date.now()}.txt`);
 
@@ -46,14 +42,45 @@ export default function StorageTestPage() {
         description: `Test file was successfully written to: ${storageRef.fullPath}`,
       });
     } catch (error: any) {
-      console.error('Storage Test Error:', error);
+      console.error('Storage Write Test Error:', error);
+      toast({ variant: 'destructive', title: 'Upload Failed', description: error.message || 'An unknown error occurred.' });
+    } finally {
+      setIsWriteLoading(false);
+    }
+  };
+
+  const handlePngTest = async () => {
+    if (isUserLoading || !user) {
+      toast({ variant: 'destructive', title: 'Not Authenticated', description: 'Please wait for authentication to complete.' });
+      return;
+    }
+
+    setIsPngLoading(true);
+    setRetrievedImageUrl(null);
+    const imagePath = `users/${user.uid}/test/test.png`;
+    const storageRef = ref(storage, imagePath);
+
+    try {
+      // 1. Upload the test PNG
+      await uploadString(storageRef, TEST_PNG_DATA_URL, 'data_url');
+      toast({ title: 'PNG Uploaded', description: 'Test PNG has been uploaded successfully.' });
+
+      // 2. Get the download URL to test read access
+      const url = await getDownloadURL(storageRef);
+      setRetrievedImageUrl(url);
+      toast({
+        title: 'PNG Retrieval Successful',
+        description: 'Successfully fetched the image URL.',
+      });
+    } catch (error: any) {
+      console.error('Storage PNG Test Error:', error);
       toast({
         variant: 'destructive',
-        title: 'Upload Failed',
-        description: error.message || 'An unknown error occurred.',
+        title: 'PNG Test Failed',
+        description: error.message || 'Could not upload or retrieve the test PNG.',
       });
     } finally {
-      setIsLoading(false);
+      setIsPngLoading(false);
     }
   };
 
@@ -61,34 +88,70 @@ export default function StorageTestPage() {
     <div className="flex flex-1 flex-col">
       <PageHeader
         title="Firebase Storage Test"
-        description="Use this page to test writing a file to Firebase Storage."
+        description="Use this page to test writing and reading files to/from Firebase Storage."
       />
       <main className="flex-1 p-6 pt-0">
-        <Card className="max-w-md">
-          <CardHeader>
-            <CardTitle>Storage Write Test</CardTitle>
-            <CardDescription>
-              Clicking the button below will attempt to write a small text file to{' '}
-              <code className="bg-muted px-1 py-0.5 rounded-sm text-sm">/users/&#123;your-user-id&#125;/test/</code>{' '}
-              in your Firebase Storage bucket. Check the browser console and toast messages for error details.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={handleTestUpload} disabled={isLoading || isUserLoading}>
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Testing...
-                </>
-              ) : (
-                <>
-                  <Beaker className="mr-2" />
-                  Run Storage Write Test
-                </>
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Storage Write Test (.txt)</CardTitle>
+              <CardDescription>
+                Attempts to write a small text file to{' '}
+                <code className="bg-muted px-1 py-0.5 rounded-sm text-sm">/users/&#123;uid&#125;/test/</code>.
+                This verifies basic write permissions.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={handleTestUpload} disabled={isWriteLoading || isUserLoading}>
+                {isWriteLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Testing...
+                  </>
+                ) : (
+                  <>
+                    <Beaker className="mr-2" />
+                    Run Write Test (.txt)
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Storage Read/Write Test (.png)</CardTitle>
+              <CardDescription>
+                Attempts to upload a small PNG to{' '}
+                <code className="bg-muted px-1 py-0.5 rounded-sm text-sm">/users/&#123;uid&#125;/test/test.png</code>{' '}
+                and then retrieve it. This verifies both write and read permissions for image files.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Button onClick={handlePngTest} disabled={isPngLoading || isUserLoading}>
+                {isPngLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Testing...
+                  </>
+                ) : (
+                  <>
+                    <ImageIcon className="mr-2" />
+                    Run R/W Test (.png)
+                  </>
+                )}
+              </Button>
+              {retrievedImageUrl && (
+                <div>
+                  <p className="mb-2 text-sm font-medium">Retrieved Image:</p>
+                  <div className="relative h-24 w-24 rounded-md border">
+                    <Image src={retrievedImageUrl} alt="Test Image" layout="fill" objectFit="contain" />
+                  </div>
+                </div>
               )}
-            </Button>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </main>
     </div>
   );

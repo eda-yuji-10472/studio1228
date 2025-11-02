@@ -99,7 +99,7 @@ export function TextToVideoForm() {
 
         const finalVideoData = {
           storageUrl: downloadURL,
-          status: 'completed',
+          status: 'completed' as const,
           inputTokens: result.usage?.inputTokens || 0,
           outputTokens: result.usage?.outputTokens || 0,
           totalTokens: result.usage?.totalTokens || 0,
@@ -119,7 +119,7 @@ export function TextToVideoForm() {
       }
     } catch (error: any) {
       console.error(error);
-      const errorData = { status: 'failed', error: error.message || 'Unknown error' };
+      const errorData = { status: 'failed' as const, error: error.message || 'Unknown error' };
       await updateDoc(newVideoDocRef, errorData).catch(updateError => {
         console.error("Failed to update doc with error state:", updateError);
         logError(updateError, { context: 'TextToVideoForm.onSubmit.updateError', userId: user.uid });

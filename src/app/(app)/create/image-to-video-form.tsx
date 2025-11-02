@@ -112,22 +112,6 @@ export function ImageToVideoForm() {
       const imageUploadResult = await uploadBytes(imageRef, sourceImageFile);
       const sourceImageUrl = await getDownloadURL(imageUploadResult.ref);
       
-      // Also save the source image as its own media item
-      const imagesCollection = collection(firestore, 'users', user.uid, 'images');
-      const newImageDoc = doc(imagesCollection);
-      const imageData = {
-        id: newImageDoc.id,
-        userId: user.uid,
-        title: sourceImageFile.name,
-        storageUrl: sourceImageUrl,
-        type: 'image' as const,
-        createdAt: serverTimestamp(),
-      };
-      await setDoc(newImageDoc, imageData).catch(error => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: newImageDoc.path, operation: 'create', requestResourceData: imageData }));
-        throw error;
-      });
-
       // Generate video using the uploaded image data URI
       addPromptItem({ text: values.prompt });
       const result = await generateVideoFromStillImage({ photoDataUri: imagePreview, prompt: values.prompt });

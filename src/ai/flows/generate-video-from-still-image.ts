@@ -67,6 +67,33 @@ const generateVideoFromStillImageFlow = ai.defineFlow(
       ? 'veo-2.0-generate-001' 
       : 'veo-3.0-generate-preview';
 
+    const config: any = {
+      aspectRatio: input.aspectRatio,
+      personGeneration: input.personGeneration,
+    };
+
+    if (modelToUse === 'veo-3.0-generate-preview') {
+      config.safetySettings = [
+        {
+          category: 'HARM_CATEGORY_HATE_SPEECH',
+          threshold: 'BLOCK_ONLY_HIGH',
+        },
+        {
+          category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+          threshold: 'BLOCK_ONLY_HIGH',
+        },
+        {
+          category: 'HARM_CATEGORY_HARASSMENT',
+          threshold: 'BLOCK_ONLY_HIGH',
+        },
+        {
+          category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+          threshold: 'BLOCK_ONLY_HIGH',
+        },
+      ];
+    }
+
+
     let {operation, custom} = await ai.generate({
       model: googleAI.model(modelToUse),
       prompt: [
@@ -80,32 +107,17 @@ const generateVideoFromStillImageFlow = ai.defineFlow(
           },
         },
       ],
-      config: {
-        aspectRatio: input.aspectRatio,
-        personGeneration: input.personGeneration,
-        safetySettings: [
-          {
-            category: 'HARM_CATEGORY_HATE_SPEECH',
-            threshold: 'BLOCK_ONLY_HIGH',
-          },
-          {
-            category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-            threshold: 'BLOCK_ONLY_HIGH',
-          },
-          {
-            category: 'HARM_CATEGORY_HARASSMENT',
-            threshold: 'BLOCK_ONLY_HIGH',
-          },
-          {
-            category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-            threshold: 'BLOCK_ONLY_HIGH',
-          },
-        ]
-      },
+      config,
     });
 
     if (!operation) {
-      throw new Error('Expected the model to return an operation');
+      // If generation failed for a reason other than safety, it might not return an operation.
+      // This case is unlikely but we handle it to prevent crashes.
+      return {
+        videoDataUri: '',
+        finishReason: 'ERROR',
+        safetyRatings: [],
+      }
     }
 
     // Wait until the operation completes. Note that this may take some time, maybe even up to a minute. Design the UI accordingly.
@@ -134,7 +146,14 @@ const generateVideoFromStillImageFlow = ai.defineFlow(
 
     const video = operation.output?.message?.content.find(p => !!p.media);
     if (!video || !video.media?.url) {
-      throw new Error('Failed to find the generated video data URI');
+       // Handle cases where operation succeeds but no video is in the output
+       return {
+        videoDataUri: '',
+        usage: operation.usage,
+        cacheHit: custom?.cacheHit || false,
+        finishReason: finishReason || 'NO_VIDEO_DATA',
+        safetyRatings,
+      }
     }
     
     // Fetch the raw URL through the proxy to get a data URI
@@ -149,5 +168,3 @@ const generateVideoFromStillImageFlow = ai.defineFlow(
     };
   }
 );
-
-    

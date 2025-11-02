@@ -120,6 +120,8 @@ export function ImageToVideoForm() {
   const currentPrompt = form.watch('prompt');
 
   const showUploadSpinner = isUploading || (isUserLoading && form.getValues('image'));
+  const isUploadDisabled = isUserLoading || isUploading;
+
 
   return (
     <Card className="max-w-2xl">
@@ -151,7 +153,7 @@ export function ImageToVideoForm() {
                           <Loader2 className="h-8 w-8 animate-spin text-white" />
                         </div>
                       )}
-                      <Input type="file" accept="image/*" className="absolute h-full w-full opacity-0" onChange={handleImageChange} disabled={!user || isUploading} />
+                      <Input type="file" accept="image/*" className="absolute h-full w-full opacity-0" onChange={handleImageChange} disabled={isUploadDisabled} />
                     </div>
                   </FormControl>
                   <FormMessage />

@@ -2,7 +2,7 @@
 
 /**
  * @fileOverview A Genkit flow that acts as a server-side proxy to fetch a URL.
- * This is used to bypass client-side CORS issues when fetching from certain domains.
+ * This is used to bypass client-side CORS issues and add authentication for fetching from Google services.
  *
  * - proxyFetch - A function that fetches a URL on the server and returns its content as a data URI.
  * - ProxyFetchInput - The input type for the proxyFetch function.
@@ -35,9 +35,18 @@ const proxyFetchFlow = ai.defineFlow(
   },
   async (input) => {
     try {
-      const response = await fetch(input.url);
+      if (!process.env.GEMINI_API_KEY) {
+        throw new Error('GEMINI_API_KEY is not set in the environment.');
+      }
+      
+      // Append the API key to the URL for authentication.
+      const authenticatedUrl = `${input.url}&key=${process.env.GEMINI_API_KEY}`;
+      
+      const response = await fetch(authenticatedUrl);
+
       if (!response.ok) {
-        throw new Error(`Failed to fetch URL: Server responded with status ${response.status}`);
+        const errorBody = await response.text();
+        throw new Error(`Failed to fetch URL: Server responded with status ${response.status}. Body: ${errorBody}`);
       }
       const buffer = await response.arrayBuffer();
       const contentType = response.headers.get('content-type') || 'application/octet-stream';

@@ -25,6 +25,11 @@ export type GenerateVideoFromStillImageInput = z.infer<
 
 const GenerateVideoFromStillImageOutputSchema = z.object({
   videoDataUri: z.string().describe('The generated video as a data URI.'),
+  usage: z.object({
+    inputTokens: z.number().optional(),
+    outputTokens: z.number().optional(),
+    totalTokens: z.number().optional(),
+  }).optional(),
 });
 export type GenerateVideoFromStillImageOutput = z.infer<
   typeof GenerateVideoFromStillImageOutputSchema
@@ -83,6 +88,9 @@ const generateVideoFromStillImageFlow = ai.defineFlow(
       throw new Error('Failed to find the generated video data URI');
     }
     
-    return {videoDataUri: video.media.url};
+    return {
+      videoDataUri: video.media.url,
+      usage: operation.output?.usage,
+    };
   }
 );

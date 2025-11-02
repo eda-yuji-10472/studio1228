@@ -32,7 +32,8 @@ async function saveMediaToStorageAndFirestore(
   userId: string,
   prompt: string,
   videoDataUri: string,
-  sourceImageUrl: string
+  sourceImageUrl: string,
+  usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number }
 ) {
   if (!videoDataUri.startsWith('data:video/mp4;base64,')) {
     throw new Error('Invalid video data URI format.');
@@ -56,6 +57,9 @@ async function saveMediaToStorageAndFirestore(
     thumbnailUrl: sourceImageUrl, // Use the source image as the thumbnail
     type: 'video' as const,
     createdAt: serverTimestamp(),
+    inputTokens: usage?.inputTokens || 0,
+    outputTokens: usage?.outputTokens || 0,
+    totalTokens: usage?.totalTokens || 0,
   };
 
   setDoc(newVideoDoc, videoData).catch(error => {
@@ -136,7 +140,7 @@ export function ImageToVideoForm() {
         type: 'image' as const,
         createdAt: serverTimestamp(),
       };
-      setDoc(newImageDoc, imageData).catch(error => {
+      await setDoc(newImageDoc, imageData).catch(error => {
         errorEmitter.emit(
           'permission-error',
           new FirestorePermissionError({
@@ -159,7 +163,7 @@ export function ImageToVideoForm() {
         setGeneratedVideo(result.videoDataUri);
         
         // 3. Save generated video and its metadata
-        await saveMediaToStorageAndFirestore(user.uid, values.prompt, result.videoDataUri, sourceImageUrl);
+        await saveMediaToStorageAndFirestore(user.uid, values.prompt, result.videoDataUri, sourceImageUrl, result.usage);
 
         toast({
           title: 'Success!',
@@ -270,5 +274,3 @@ export function ImageToVideoForm() {
     </Card>
   );
 }
-
-    

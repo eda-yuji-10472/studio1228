@@ -28,7 +28,8 @@ const formSchema = z.object({
 async function saveVideoToStorageAndFirestore(
   userId: string,
   prompt: string,
-  videoDataUri: string
+  videoDataUri: string,
+  usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number }
 ) {
   if (!videoDataUri.startsWith('data:video/mp4;base64,')) {
     throw new Error('Invalid video data URI format.');
@@ -51,9 +52,12 @@ async function saveVideoToStorageAndFirestore(
     storageUrl: downloadURL,
     type: 'video' as const,
     createdAt: serverTimestamp(),
+    inputTokens: usage?.inputTokens || 0,
+    outputTokens: usage?.outputTokens || 0,
+    totalTokens: usage?.totalTokens || 0,
   };
 
-  setDoc(newVideoDoc, videoData).catch(error => {
+  await setDoc(newVideoDoc, videoData).catch(error => {
     errorEmitter.emit(
       'permission-error',
       new FirestorePermissionError({
@@ -104,7 +108,7 @@ export function TextToVideoForm() {
       if (result.videoDataUri) {
         setGeneratedVideo(result.videoDataUri);
         
-        await saveVideoToStorageAndFirestore(user.uid, values.prompt, result.videoDataUri);
+        await saveVideoToStorageAndFirestore(user.uid, values.prompt, result.videoDataUri, result.usage);
 
         toast({
           title: 'Success!',
@@ -192,5 +196,3 @@ export function TextToVideoForm() {
     </Card>
   );
 }
-
-    

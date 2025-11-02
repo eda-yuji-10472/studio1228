@@ -22,6 +22,11 @@ export type GenerateVideoFromTextInput = z.infer<
 
 const GenerateVideoFromTextOutputSchema = z.object({
   videoDataUri: z.string().describe('The generated video as a data URI.'),
+  usage: z.object({
+    inputTokens: z.number().optional(),
+    outputTokens: z.number().optional(),
+    totalTokens: z.number().optional(),
+  }).optional(),
 });
 export type GenerateVideoFromTextOutput = z.infer<
   typeof GenerateVideoFromTextOutputSchema
@@ -69,6 +74,9 @@ const generateVideoFromTextFlow = ai.defineFlow(
     // Fetch the raw URL through the proxy to get a data URI
     const proxied = await proxyFetch({ url: video.media.url });
 
-    return {videoDataUri: proxied.dataUri};
+    return {
+      videoDataUri: proxied.dataUri,
+      usage: operation.output?.usage,
+    };
   }
 );

@@ -12,6 +12,10 @@ import {z} from 'genkit';
 import {googleAI} from '@genkit-ai/google-genai';
 import { proxyFetch } from './proxy-fetch';
 
+// A simple 1x1 transparent PNG as a base64 data URL
+const TEST_VIDEO_DATA_URL = 'data:video/mp4;base64,AAAAHGZ0eXBNNFYgAAACAGlzb21pc28yYXZjMQAAAAhmcmVlAAAAG21kYXQAAAGzABAHAAABthBgUY//';
+
+
 const GenerateVideoFromStillImageInputSchema = z.object({
   photoDataUri: z
     .string()
@@ -52,6 +56,18 @@ const generateVideoFromStillImageFlow = ai.defineFlow(
     outputSchema: GenerateVideoFromStillImageOutputSchema,
   },
   async input => {
+    // DRY RUN: Return mock data to avoid calling the expensive VEO API.
+    return {
+        videoDataUri: TEST_VIDEO_DATA_URL,
+        usage: {
+          inputTokens: 150,
+          outputTokens: 250,
+          totalTokens: 400,
+        },
+        cacheHit: true, // Simulate a cache hit to make it fast
+    };
+
+    /*
     const contentType = input.photoDataUri.match(/data:(.*);base64,/)?.[1];
     if (!contentType) {
       throw new Error('Could not determine content type from data URI.');
@@ -104,7 +120,6 @@ const generateVideoFromStillImageFlow = ai.defineFlow(
       usage: operation.usage,
       cacheHit: custom?.cacheHit || false,
     };
+    */
   }
 );
-
-    

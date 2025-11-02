@@ -31,6 +31,11 @@ const GenerateImageFromImageOutputSchema = z.object({
     totalTokens: z.number().optional(),
   }).optional(),
   cacheHit: z.boolean().optional(),
+  finishReason: z.string().optional(),
+  safetyRatings: z.array(z.object({
+    category: z.string(),
+    probability: z.string(),
+  })).optional(),
 });
 export type GenerateImageFromImageOutput = z.infer<
   typeof GenerateImageFromImageOutputSchema
@@ -54,7 +59,7 @@ const generateImageFromImageFlow = ai.defineFlow(
       throw new Error('Could not determine content type from data URI.');
     }
 
-    const {media, usage, custom} = await ai.generate({
+    const {media, usage, custom, finishReason, safetyRatings} = await ai.generate({
       model: googleAI.model('gemini-2.5-flash-image-preview'),
       prompt: [
         {text: input.prompt},
@@ -66,6 +71,16 @@ const generateImageFromImageFlow = ai.defineFlow(
     });
 
     if (!media?.url) {
+      if (finishReason === 'SAFETY') {
+        // If generation was blocked for safety, we still want to return that info.
+        return {
+          imageDataUri: '',
+          usage,
+          cacheHit: custom?.cacheHit || false,
+          finishReason,
+          safetyRatings,
+        }
+      }
       throw new Error('Image generation failed to return an image.');
     }
     
@@ -76,6 +91,10 @@ const generateImageFromImageFlow = ai.defineFlow(
       imageDataUri,
       usage,
       cacheHit: custom?.cacheHit || false,
+      finishReason,
+      safetyRatings,
     };
   }
 );
+
+    

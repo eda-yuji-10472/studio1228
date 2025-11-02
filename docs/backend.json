@@ -65,6 +65,21 @@
         "cacheHit": {
           "type": "boolean",
           "description": "Indicates if the generation result was served from cache."
+        },
+        "finishReason": {
+          "type": "string",
+          "description": "The reason the model stopped generating content, e.g., 'SAFETY'."
+        },
+        "safetyRatings": {
+          "type": "array",
+          "description": "A list of safety ratings for the generated content.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "category": { "type": "string" },
+              "probability": { "type": "string" }
+            }
+          }
         }
       },
       "required": [
@@ -105,6 +120,21 @@
           "type": "string",
           "description": "Date and time when the image was created.",
           "format": "date-time"
+        },
+        "finishReason": {
+          "type": "string",
+          "description": "The reason the model stopped generating content, e.g., 'SAFETY'."
+        },
+        "safetyRatings": {
+          "type": "array",
+          "description": "A list of safety ratings for the generated content.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "category": { "type": "string" },
+              "probability": { "type": "string" }
+            }
+          }
         }
       },
       "required": [

@@ -123,6 +123,29 @@ export function ImageToVideoForm() {
         personGeneration: values.personGeneration,
         aspectRatio: values.aspectRatio,
        });
+
+      const docUpdate: any = {
+        thumbnailUrl: sourceImageUrl,
+        inputTokens: result.usage?.inputTokens ?? 0,
+        outputTokens: result.usage?.outputTokens ?? 0,
+        totalTokens: result.usage?.totalTokens ?? 0,
+        cacheHit: result.cacheHit || false,
+        finishReason: result.finishReason,
+        safetyRatings: result.safetyRatings || [],
+      };
+
+      if (result.finishReason === 'SAFETY') {
+        docUpdate.status = 'failed';
+        docUpdate.error = 'Blocked by safety policy.';
+        await updateDoc(newVideoDocRef, docUpdate);
+        toast({
+          variant: 'destructive',
+          title: 'Generation Blocked',
+          description: 'The prompt or image was blocked by the safety policy. The details have been logged.',
+        });
+        setIsGenerating(false);
+        return;
+      }
       
       if (result.videoDataUri) {
         setGeneratedVideo(result.videoDataUri);
@@ -131,16 +154,10 @@ export function ImageToVideoForm() {
         const uploadResult = await uploadString(videoRef, result.videoDataUri, 'data_url');
         const downloadURL = await getDownloadURL(uploadResult.ref);
 
-        const finalVideoData = {
-          storageUrl: downloadURL,
-          thumbnailUrl: sourceImageUrl,
-          status: 'completed' as const,
-          inputTokens: result.usage?.inputTokens ?? 0,
-          outputTokens: result.usage?.outputTokens ?? 0,
-          totalTokens: result.usage?.totalTokens ?? 0,
-          cacheHit: result.cacheHit || false,
-        };
-        await updateDoc(newVideoDocRef, finalVideoData);
+        docUpdate.storageUrl = downloadURL;
+        docUpdate.status = 'completed';
+
+        await updateDoc(newVideoDocRef, docUpdate);
 
         toast({
           title: 'Success!',
@@ -314,3 +331,5 @@ export function ImageToVideoForm() {
     </Card>
   );
 }
+
+    

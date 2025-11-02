@@ -91,6 +91,28 @@ export function TextToVideoForm() {
       addPromptItem({ text: values.prompt });
       const result = await generateVideoFromText({ prompt: values.prompt });
       
+      const docUpdate: any = {
+        inputTokens: result.usage?.inputTokens ?? 0,
+        outputTokens: result.usage?.outputTokens ?? 0,
+        totalTokens: result.usage?.totalTokens ?? 0,
+        cacheHit: result.cacheHit || false,
+        finishReason: result.finishReason,
+        safetyRatings: result.safetyRatings || [],
+      };
+
+      if (result.finishReason === 'SAFETY') {
+        docUpdate.status = 'failed';
+        docUpdate.error = 'Blocked by safety policy.';
+        await updateDoc(newVideoDocRef, docUpdate);
+        toast({
+          variant: 'destructive',
+          title: 'Generation Blocked',
+          description: 'The prompt was blocked by the safety policy. The details have been logged.',
+        });
+        setIsGenerating(false);
+        return;
+      }
+      
       if (result.videoDataUri) {
         setGeneratedVideo(result.videoDataUri);
         
@@ -98,16 +120,10 @@ export function TextToVideoForm() {
         const uploadResult = await uploadString(videoRef, result.videoDataUri, 'data_url');
         const downloadURL = await getDownloadURL(uploadResult.ref);
 
-        const finalVideoData = {
-          storageUrl: downloadURL,
-          status: 'completed' as const,
-          inputTokens: result.usage?.inputTokens ?? 0,
-          outputTokens: result.usage?.outputTokens ?? 0,
-          totalTokens: result.usage?.totalTokens ?? 0,
-          cacheHit: result.cacheHit || false,
-        };
+        docUpdate.storageUrl = downloadURL;
+        docUpdate.status = 'completed';
 
-        await updateDoc(newVideoDocRef, finalVideoData);
+        await updateDoc(newVideoDocRef, docUpdate);
 
         toast({
           title: 'Success!',
@@ -167,8 +183,8 @@ export function TextToVideoForm() {
               )}
             />
             {generatedVideo && (
-              <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted">
-                <video src={generatedVideo} controls autoPlay muted loop className="h-full w-full object-contain" />
+              <div className="w-full overflow-hidden rounded-lg border bg-muted flex justify-center">
+                <video src={generatedVideo} controls autoPlay muted loop className="h-full max-h-[60vh] w-auto object-contain" />
               </div>
             )}
             {isGenerating && !generatedVideo && (
@@ -201,3 +217,5 @@ export function TextToVideoForm() {
     </Card>
   );
 }
+
+    

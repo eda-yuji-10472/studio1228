@@ -28,6 +28,11 @@ const GenerateVideoFromTextOutputSchema = z.object({
     totalTokens: z.number().optional(),
   }).optional(),
   cacheHit: z.boolean().optional(),
+  finishReason: z.string().optional(),
+  safetyRatings: z.array(z.object({
+    category: z.string(),
+    probability: z.string(),
+  })).optional(),
 });
 export type GenerateVideoFromTextOutput = z.infer<
   typeof GenerateVideoFromTextOutputSchema
@@ -84,7 +89,20 @@ const generateVideoFromTextFlow = ai.defineFlow(
       await new Promise(resolve => setTimeout(resolve, 5000));
     }
 
+    const finishReason = operation.output?.candidates[0]?.finishReason;
+    const safetyRatings = operation.output?.candidates[0]?.safetyRatings;
+
     if (operation.error) {
+      // Even if there's an error, we might have safety data to return.
+      if (finishReason === 'SAFETY') {
+        return {
+          videoDataUri: '',
+          usage: operation.usage,
+          cacheHit: custom?.cacheHit || false,
+          finishReason,
+          safetyRatings,
+        }
+      }
       throw new Error('failed to generate video: ' + operation.error.message);
     }
 
@@ -100,6 +118,10 @@ const generateVideoFromTextFlow = ai.defineFlow(
       videoDataUri: proxied.dataUri,
       usage: operation.usage,
       cacheHit: custom?.cacheHit || false,
+      finishReason,
+      safetyRatings,
     };
   }
 );
+
+    

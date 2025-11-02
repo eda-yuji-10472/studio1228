@@ -84,6 +84,7 @@ export function ImageToVideoForm() {
         thumbnailUrl: '',
         type: 'video' as const,
         status: 'processing' as const,
+        aspectRatio: '16:9', // Save the hardcoded aspect ratio
         createdAt: serverTimestamp(),
         inputTokens: 0,
         outputTokens: 0,
@@ -105,7 +106,7 @@ export function ImageToVideoForm() {
     // Step 2-5: Perform the generation, uploads, and final update.
     try {
       // Upload source image to get its URL for the thumbnail
-      const imageFileName = `${Date.now()}-${sourceImageFile.name}`;
+      const imageFileName = `${newVideoDocRef.id}-${sourceImageFile.name}`;
       const imageRef = ref(storage, `users/${user.uid}/images/${imageFileName}`);
       const imageUploadResult = await uploadBytes(imageRef, sourceImageFile);
       const sourceImageUrl = await getDownloadURL(imageUploadResult.ref);
@@ -241,3 +242,5 @@ export function ImageToVideoForm() {
     </Card>
   );
 }
+
+    

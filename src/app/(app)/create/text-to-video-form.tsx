@@ -65,6 +65,7 @@ export function TextToVideoForm() {
         storageUrl: '',
         type: 'video' as const,
         status: 'processing' as const,
+        aspectRatio: '16:9', // Save the hardcoded aspect ratio
         createdAt: serverTimestamp(),
         inputTokens: 0,
         outputTokens: 0,
@@ -197,3 +198,5 @@ export function TextToVideoForm() {
     </Card>
   );
 }
+
+    

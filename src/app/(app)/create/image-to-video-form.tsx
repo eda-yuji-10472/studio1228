@@ -73,7 +73,7 @@ export function ImageToVideoForm() {
     const videosCollection = collection(firestore, 'users', user.uid, 'videos');
     const newVideoDocRef = doc(videosCollection);
 
-    // Step 1: Create the initial document in Firestore to track the job.
+    // Step 1: Create the initial document in Firestore. If this fails, stop immediately.
     try {
       const initialVideoData = {
         id: newVideoDocRef.id,
@@ -84,7 +84,8 @@ export function ImageToVideoForm() {
         thumbnailUrl: '',
         type: 'video' as const,
         status: 'processing' as const,
-        aspectRatio: '16:9', // Save the hardcoded aspect ratio
+        aspectRatio: '16:9',
+        personGeneration: 'allow_adult',
         createdAt: serverTimestamp(),
         inputTokens: 0,
         outputTokens: 0,
@@ -100,7 +101,7 @@ export function ImageToVideoForm() {
       });
       errorEmitter.emit('permission-error', new FirestorePermissionError({ path: newVideoDocRef.path, operation: 'create', requestResourceData: { title: values.prompt, status: 'processing'} }));
       setIsGenerating(false);
-      return;
+      return; // CRITICAL: Stop if we can't create the initial doc.
     }
 
     // Step 2-5: Perform the generation, uploads, and final update.
@@ -242,5 +243,3 @@ export function ImageToVideoForm() {
     </Card>
   );
 }
-
-    

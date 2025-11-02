@@ -58,7 +58,7 @@ const generateVideoFromStillImageFlow = ai.defineFlow(
     }
 
     let {operation, custom} = await ai.generate({
-      model: googleAI.model('veo-3.0-generate-preview'),
+      model: googleAI.model('veo-2.0-generate-001'),
       prompt: [
         {
           text: input.prompt,

@@ -55,7 +55,7 @@ export function TextToVideoForm() {
     const videosCollection = collection(firestore, 'users', user.uid, 'videos');
     const newVideoDocRef = doc(videosCollection);
     
-    // Step 1: Create initial record in Firestore
+    // Step 1: Create initial record in Firestore. Stop if this fails.
     try {
       const initialVideoData = {
         id: newVideoDocRef.id,
@@ -64,25 +64,23 @@ export function TextToVideoForm() {
         prompt: values.prompt,
         storageUrl: '',
         type: 'video' as const,
-        status: 'processing',
+        status: 'processing' as const,
         createdAt: serverTimestamp(),
         inputTokens: 0,
         outputTokens: 0,
         totalTokens: 0,
       };
-      await setDoc(newVideoDocRef, initialVideoData).catch(error => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: newVideoDocRef.path, operation: 'create', requestResourceData: initialVideoData }));
-        throw error;
-      });
+      await setDoc(newVideoDocRef, initialVideoData);
     } catch (error: any) {
         console.error('Failed to create initial Firestore document:', error);
         toast({
           variant: 'destructive',
           title: 'Firestore Error',
-          description: `Could not create tracking document. ${error.message}`,
+          description: `Could not create tracking document. Check permissions. ${error.message}`,
         });
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: newVideoDocRef.path, operation: 'create', requestResourceData: { title: values.prompt, status: 'processing'} }));
         setIsGenerating(false);
-        return; // Stop if we can't create the initial doc.
+        return; // CRITICAL: Stop if we can't create the initial doc.
     }
 
     // Step 2-4: Generate, upload, and update.
@@ -105,10 +103,7 @@ export function TextToVideoForm() {
           totalTokens: result.usage?.totalTokens || 0,
         };
 
-        await updateDoc(newVideoDocRef, finalVideoData).catch(error => {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({ path: newVideoDocRef.path, operation: 'update', requestResourceData: finalVideoData }));
-          throw error;
-        });
+        await updateDoc(newVideoDocRef, finalVideoData);
 
         toast({
           title: 'Success!',

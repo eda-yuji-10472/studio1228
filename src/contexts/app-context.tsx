@@ -1,6 +1,6 @@
 'use client';
 
-import type { MediaItem, PromptItem } from '@/lib/types';
+import type { PromptItem } from '@/lib/types';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const MAX_PROMPT_ITEMS = 20;
@@ -9,12 +9,15 @@ interface AppContextType {
   promptHistory: PromptItem[];
   addPromptItem: (item: Omit<PromptItem, 'id' | 'createdAt'>) => void;
   isHydrated: boolean;
+  addMediaItem: (id: string, type: 'video' | 'image') => void;
+  mediaItems: { id: string; type: 'video' | 'image' }[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [promptHistory, setPromptHistory] = useState<PromptItem[]>([]);
+  const [mediaItems, setMediaItems] = useState<{ id: string; type: 'video' | 'image' }[]>([]);
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
@@ -23,9 +26,14 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (storedPrompts) {
         setPromptHistory(JSON.parse(storedPrompts));
       }
+      const storedMedia = localStorage.getItem('mediaItems');
+      if (storedMedia) {
+        setMediaItems(JSON.parse(storedMedia));
+      }
     } catch (error) {
       console.error("Failed to parse from localStorage, clearing for safety.", error);
       localStorage.removeItem('promptHistory');
+      localStorage.removeItem('mediaItems');
     }
     setIsHydrated(true);
   }, []);
@@ -33,13 +41,14 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   useEffect(() => {
     if (isHydrated) {
       try {
-        const itemsToStore = promptHistory.slice(0, MAX_PROMPT_ITEMS);
-        localStorage.setItem('promptHistory', JSON.stringify(itemsToStore));
+        const promptsToStore = promptHistory.slice(0, MAX_PROMPT_ITEMS);
+        localStorage.setItem('promptHistory', JSON.stringify(promptsToStore));
+        localStorage.setItem('mediaItems', JSON.stringify(mediaItems));
       } catch (error) {
-        console.error("Failed to save promptHistory to localStorage", error);
+        console.error("Failed to save to localStorage", error);
       }
     }
-  }, [promptHistory, isHydrated]);
+  }, [promptHistory, mediaItems, isHydrated]);
 
   const addPromptItem = useCallback((item: Omit<PromptItem, 'id' | 'createdAt'>) => {
     setPromptHistory(prev => {
@@ -51,7 +60,11 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   }, []);
 
-  const value = { promptHistory, addPromptItem, isHydrated };
+  const addMediaItem = useCallback((id: string, type: 'video' | 'image') => {
+    setMediaItems(prev => [{ id, type }, ...prev]);
+  }, []);
+
+  const value = { promptHistory, addPromptItem, isHydrated, addMediaItem, mediaItems };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };

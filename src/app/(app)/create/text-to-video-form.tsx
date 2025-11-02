@@ -15,7 +15,9 @@ import { Loader2, Sparkles } from 'lucide-react';
 import { PromptSuggestions } from '@/components/shared/prompt-suggestions';
 import { useFirestore, useStorage, useUser } from '@/firebase';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, setDoc, doc } from 'firebase/firestore';
+import { FirestorePermissionError } from '@/firebase/errors';
+import { errorEmitter } from '@/firebase/error-emitter';
 
 const formSchema = z.object({
   prompt: z.string().min(10, 'Prompt must be at least 10 characters long.'),
@@ -39,16 +41,31 @@ async function saveVideoToStorageAndFirestore(
 
   // 2. Save metadata to Firestore
   const videosCollection = collection(firestore, 'users', userId, 'videos');
-  await addDoc(videosCollection, {
+  const newVideoDoc = doc(videosCollection);
+  
+  await setDoc(newVideoDoc, {
+    id: newVideoDoc.id,
     userId: userId,
     title: prompt,
     prompt: prompt,
     storageUrl: downloadURL,
     type: 'video',
     createdAt: serverTimestamp(),
+  }).catch(error => {
+    errorEmitter.emit(
+      'permission-error',
+      new FirestorePermissionError({
+        path: newVideoDoc.path,
+        operation: 'create',
+        requestResourceData: { prompt, type: 'video' },
+      })
+    );
+    // Re-throw the original error to be caught by the calling function's catch block
+    throw error;
   });
 
-  return downloadURL;
+
+  return { videoUrl: downloadURL, docId: newVideoDoc.id};
 }
 
 export function TextToVideoForm() {

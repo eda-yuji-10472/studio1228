@@ -17,7 +17,9 @@ import Image from 'next/image';
 import { PromptSuggestions } from '@/components/shared/prompt-suggestions';
 import { useFirestore, useStorage, useUser } from '@/firebase';
 import { ref, uploadBytes, getDownloadURL, uploadString } from 'firebase/storage';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, setDoc } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 const formSchema = z.object({
   image: z.any().refine(file => file instanceof File, 'Please upload an image.'),
@@ -43,7 +45,10 @@ async function saveMediaToStorageAndFirestore(
 
   // 2. Save video metadata to Firestore
   const videosCollection = collection(firestore, 'users', userId, 'videos');
-  await addDoc(videosCollection, {
+  const newVideoDoc = doc(videosCollection);
+  
+  await setDoc(newVideoDoc, {
+    id: newVideoDoc.id,
     userId: userId,
     title: prompt,
     prompt: prompt,
@@ -51,9 +56,19 @@ async function saveMediaToStorageAndFirestore(
     thumbnailUrl: sourceImageUrl, // Use the source image as the thumbnail
     type: 'video',
     createdAt: serverTimestamp(),
+  }).catch(error => {
+    errorEmitter.emit(
+      'permission-error',
+      new FirestorePermissionError({
+        path: newVideoDoc.path,
+        operation: 'create',
+        requestResourceData: { prompt, type: 'video' },
+      })
+    );
+    throw error;
   });
 
-  return downloadURL;
+  return { videoUrl: downloadURL, docId: newVideoDoc.id};
 }
 
 export function ImageToVideoForm() {
@@ -112,13 +127,26 @@ export function ImageToVideoForm() {
       
       // Save image metadata to Firestore
       const imagesCollection = collection(firestore, 'users', user.uid, 'images');
-      await addDoc(imagesCollection, {
+      const newImageDoc = doc(imagesCollection);
+      await setDoc(newImageDoc, {
+        id: newImageDoc.id,
         userId: user.uid,
         title: sourceImageFile.name,
         storageUrl: sourceImageUrl,
         type: 'image',
         createdAt: serverTimestamp(),
+      }).catch(error => {
+        errorEmitter.emit(
+          'permission-error',
+          new FirestorePermissionError({
+            path: newImageDoc.path,
+            operation: 'create',
+            requestResourceData: { title: sourceImageFile.name, type: 'image' },
+          })
+        );
+        throw error;
       });
+
 
       setIsUploading(false); // Initial upload finished
 

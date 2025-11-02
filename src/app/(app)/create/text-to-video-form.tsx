@@ -96,7 +96,7 @@ export function TextToVideoForm() {
         outputTokens: result.usage?.outputTokens ?? 0,
         totalTokens: result.usage?.totalTokens ?? 0,
         cacheHit: result.cacheHit || false,
-        finishReason: result.finishReason,
+        finishReason: result.finishReason || null,
         safetyRatings: result.safetyRatings || [],
       };
 
@@ -130,7 +130,11 @@ export function TextToVideoForm() {
           description: `Your video has been generated and saved. ${result.cacheHit ? '(from cache)' : ''}`,
         });
       } else {
-        throw new Error('Video generation failed to return a video.');
+        const reason = result.finishReason || 'unknown';
+        docUpdate.status = 'failed';
+        docUpdate.error = `Generation failed with reason: ${reason}`;
+        await updateDoc(newVideoDocRef, docUpdate);
+        throw new Error(`Video generation failed to return a video. Reason: ${reason}`);
       }
     } catch (error: any) {
       console.error(error);

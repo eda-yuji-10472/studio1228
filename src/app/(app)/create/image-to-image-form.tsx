@@ -120,7 +120,7 @@ export function ImageToImageForm() {
         outputTokens: result.usage?.outputTokens ?? 0,
         totalTokens: result.usage?.totalTokens ?? 0,
         cacheHit: result.cacheHit || false,
-        finishReason: result.finishReason || 'unknown',
+        finishReason: result.finishReason || null,
         safetyRatings: result.safetyRatings || [],
       };
 
@@ -164,10 +164,11 @@ export function ImageToImageForm() {
           });
         }
       } else {
+         const reason = result.finishReason || 'unknown';
          docUpdate.status = 'failed';
-         docUpdate.error = `Generation failed with reason: ${result.finishReason || 'unknown'}`;
+         docUpdate.error = `Generation failed with reason: ${reason}`;
          await updateDoc(newImageDocRef, docUpdate);
-         throw new Error(`Image generation failed to return an image. Reason: ${result.finishReason || 'unknown'}`);
+         throw new Error(`Image generation failed to return an image. Reason: ${reason}`);
       }
     } catch (error: any) {
       console.error(error);

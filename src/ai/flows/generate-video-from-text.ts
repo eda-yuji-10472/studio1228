@@ -27,6 +27,7 @@ const GenerateVideoFromTextOutputSchema = z.object({
     outputTokens: z.number().optional(),
     totalTokens: z.number().optional(),
   }).optional(),
+  cacheHit: z.boolean().optional(),
 });
 export type GenerateVideoFromTextOutput = z.infer<
   typeof GenerateVideoFromTextOutputSchema
@@ -45,7 +46,7 @@ const generateVideoFromTextFlow = ai.defineFlow(
     outputSchema: GenerateVideoFromTextOutputSchema,
   },
   async input => {
-    let {operation} = await ai.generate({
+    let {operation, custom} = await ai.generate({
       model: googleAI.model('veo-3.0-generate-preview'),
       prompt: input.prompt,
       config: {
@@ -80,6 +81,9 @@ const generateVideoFromTextFlow = ai.defineFlow(
     return {
       videoDataUri: proxied.dataUri,
       usage: operation.usage,
+      cacheHit: custom?.cacheHit || false,
     };
   }
 );
+
+    

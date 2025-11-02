@@ -71,6 +71,7 @@ export function TextToVideoForm() {
         inputTokens: 0,
         outputTokens: 0,
         totalTokens: 0,
+        cacheHit: false,
       };
       await setDoc(newVideoDocRef, initialVideoData);
     } catch (error: any) {
@@ -103,13 +104,14 @@ export function TextToVideoForm() {
           inputTokens: result.usage?.inputTokens ?? 0,
           outputTokens: result.usage?.outputTokens ?? 0,
           totalTokens: result.usage?.totalTokens ?? 0,
+          cacheHit: result.cacheHit || false,
         };
 
         await updateDoc(newVideoDocRef, finalVideoData);
 
         toast({
           title: 'Success!',
-          description: 'Your video has been generated and saved to your library.',
+          description: `Your video has been generated and saved. ${result.cacheHit ? '(from cache)' : ''}`,
         });
       } else {
         throw new Error('Video generation failed to return a video.');
@@ -199,3 +201,5 @@ export function TextToVideoForm() {
     </Card>
   );
 }
+
+    

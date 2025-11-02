@@ -44,7 +44,10 @@
           "description": "The aspect ratio of the generated video, e.g., '16:9'."
         },
         "personGeneration": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "The safety setting for generating people, e.g., 'allow_adult'."
         },
         "inputTokens": {
@@ -58,6 +61,10 @@
         "totalTokens": {
           "type": "number",
           "description": "Total number of tokens used for generation."
+        },
+        "cacheHit": {
+          "type": "boolean",
+          "description": "Indicates if the generation result was served from cache."
         }
       },
       "required": [
@@ -176,7 +183,10 @@
           "description": "Unique identifier for the error log."
         },
         "userId": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "The UID of the user who experienced the error, if authenticated."
         },
         "message": {
@@ -308,3 +318,4 @@
     "reasoning": "The Firestore structure is designed to support VEO Studio Pro's core features, focusing on video generation from text and images, media library, and prompt history, while adhering to the principles of Authorization Independence, Clarity of Intent, DBAC, and QAPs.  It leverages path-based ownership for user-generated content (videos, images, prompts) to simplify security rules and maintain data integrity.\n\nAuthorization Independence is achieved by avoiding `get()` calls in security rules. Path-based ownership (`/users/{userId}/videos/{videoId}`) inherently grants access to the owner. Any data required for authorization within a subcollection is denormalized.  Since the application is centered around personal media and prompt usage, collaborative data structures using membership maps are not required, further simplifying authorization.\n\nQAPs (Rules are not Filters) is supported by segregating user-owned data into user-specific collections.  Listing videos, images, or prompts under `/users/{userId}` will only return data owned by that user, as enforced by the security rules. Global access is not needed in this application.\n\nThe choice of path-based ownership also helps with invariants by simplifying the enforcement of ownership.  Timestamps can be enforced via rules, and the structure encourages denormalization of user-specific data where needed for authorization, reducing the risk of inconsistencies."
   }
 }
+    

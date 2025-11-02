@@ -33,6 +33,7 @@ const GenerateVideoFromStillImageOutputSchema = z.object({
     outputTokens: z.number().optional(),
     totalTokens: z.number().optional(),
   }).optional(),
+  cacheHit: z.boolean().optional(),
 });
 export type GenerateVideoFromStillImageOutput = z.infer<
   typeof GenerateVideoFromStillImageOutputSchema
@@ -56,7 +57,7 @@ const generateVideoFromStillImageFlow = ai.defineFlow(
       throw new Error('Could not determine content type from data URI.');
     }
 
-    let {operation} = await ai.generate({
+    let {operation, custom} = await ai.generate({
       model: googleAI.model('veo-3.0-generate-preview'),
       prompt: [
         {
@@ -101,6 +102,9 @@ const generateVideoFromStillImageFlow = ai.defineFlow(
     return {
       videoDataUri: proxied.dataUri,
       usage: operation.usage,
+      cacheHit: custom?.cacheHit || false,
     };
   }
 );
+
+    

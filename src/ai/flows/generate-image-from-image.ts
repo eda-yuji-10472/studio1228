@@ -25,6 +25,7 @@ export type GenerateImageFromImageInput = z.infer<
 
 const GenerateImageFromImageOutputSchema = z.object({
   imageDataUri: z.string().describe('The generated image as a data URI.'),
+  noChangeDetected: z.boolean().optional().describe('True if the output image is identical to the input.'),
   usage: z.object({
     inputTokens: z.number().optional(),
     outputTokens: z.number().optional(),
@@ -71,8 +72,8 @@ const generateImageFromImageFlow = ai.defineFlow(
     });
 
     if (!media?.url) {
+      // If generation was blocked for safety, we still want to return that info.
       if (finishReason === 'SAFETY') {
-        // If generation was blocked for safety, we still want to return that info.
         return {
           imageDataUri: '',
           usage,
@@ -85,10 +86,16 @@ const generateImageFromImageFlow = ai.defineFlow(
     }
     
     // The model returns a PNG, let's ensure the data URI reflects that
-    const imageDataUri = `data:image/png;base64,${media.url.split(',')[1]}`;
+    const outputBase64 = media.url.split(',')[1];
+    const imageDataUri = `data:image/png;base64,${outputBase64}`;
+
+    // Compare input and output to see if there was a change
+    const inputBase64 = input.photoDataUri.split(',')[1];
+    const noChangeDetected = inputBase64 === outputBase64;
 
     return {
       imageDataUri,
+      noChangeDetected,
       usage,
       cacheHit: custom?.cacheHit || false,
       finishReason,

@@ -154,10 +154,17 @@ export function ImageToImageForm() {
         
         await updateDoc(newImageDocRef, docUpdate);
 
-        toast({
-          title: 'Success!',
-          description: `Your new image has been generated and saved. ${result.cacheHit ? '(from cache)' : ''}`,
-        });
+        if (result.noChangeDetected) {
+          toast({
+            title: 'No Change Detected',
+            description: "The model returned an identical image. Try a more specific prompt or a different image.",
+          });
+        } else {
+          toast({
+            title: 'Success!',
+            description: `Your new image has been generated and saved. ${result.cacheHit ? '(from cache)' : ''}`,
+          });
+        }
       } else {
         throw new Error('Image generation failed to return an image.');
       }

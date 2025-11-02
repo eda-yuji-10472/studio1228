@@ -29,6 +29,7 @@ const formSchema = z.object({
   image: z.any().refine(file => file instanceof File, 'Please upload an image.'),
   prompt: z.string().min(10, 'Prompt must be at least 10 characters long.'),
   personGeneration: z.string().default('allow_adult'),
+  aspectRatio: z.string().default('16:9'),
 });
 
 export function ImageToVideoForm() {
@@ -45,6 +46,7 @@ export function ImageToVideoForm() {
     defaultValues: {
       prompt: '',
       personGeneration: 'allow_adult',
+      aspectRatio: '16:9',
     },
   });
 
@@ -77,7 +79,6 @@ export function ImageToVideoForm() {
     const videosCollection = collection(firestore, 'users', user.uid, 'videos');
     const newVideoDocRef = doc(videosCollection);
 
-    // Step 1: Create the initial document in Firestore. If this fails, stop immediately.
     try {
       const initialVideoData = {
         id: newVideoDocRef.id,
@@ -89,6 +90,7 @@ export function ImageToVideoForm() {
         type: 'video' as const,
         status: 'processing' as const,
         personGeneration: values.personGeneration,
+        aspectRatio: values.aspectRatio,
         createdAt: serverTimestamp(),
         inputTokens: 0,
         outputTokens: 0,
@@ -105,34 +107,30 @@ export function ImageToVideoForm() {
       });
       errorEmitter.emit('permission-error', new FirestorePermissionError({ path: newVideoDocRef.path, operation: 'create', requestResourceData: { title: values.prompt, status: 'processing'} }));
       setIsGenerating(false);
-      return; // CRITICAL: Stop if we can't create the initial doc.
+      return;
     }
 
-    // Step 2-5: Perform the generation, uploads, and final update.
     try {
-      // Upload source image to get its URL for the thumbnail
       const imageFileName = `${newVideoDocRef.id}-${sourceImageFile.name}`;
       const imageRef = ref(storage, `users/${user.uid}/images/${imageFileName}`);
       const imageUploadResult = await uploadBytes(imageRef, sourceImageFile);
       const sourceImageUrl = await getDownloadURL(imageUploadResult.ref);
       
-      // Generate video using the uploaded image data URI
       addPromptItem({ text: values.prompt });
       const result = await generateVideoFromStillImage({ 
         photoDataUri: imagePreview, 
         prompt: values.prompt,
         personGeneration: values.personGeneration,
+        aspectRatio: values.aspectRatio,
        });
       
       if (result.videoDataUri) {
         setGeneratedVideo(result.videoDataUri);
         
-        // Upload generated video to Storage
         const videoRef = ref(storage, `users/${user.uid}/videos/${newVideoDocRef.id}.mp4`);
         const uploadResult = await uploadString(videoRef, result.videoDataUri, 'data_url');
         const downloadURL = await getDownloadURL(uploadResult.ref);
 
-        // Update Firestore record with final data
         const finalVideoData = {
           storageUrl: downloadURL,
           thumbnailUrl: sourceImageUrl,
@@ -154,7 +152,6 @@ export function ImageToVideoForm() {
     } catch (error: any) {
       console.error(error);
       const errorData = { status: 'failed' as const, error: error.message || 'Unknown error' };
-      // Attempt to update the doc with the error status
       await updateDoc(newVideoDocRef, errorData).catch(updateError => {
         console.error("Failed to update doc with error state:", updateError);
         logError(updateError, { context: 'ImageToVideoForm.onSubmit.updateError', userId: user.uid });
@@ -180,7 +177,7 @@ export function ImageToVideoForm() {
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardHeader>
             <CardTitle>Image-to-Video Generation</CardTitle>
-            <CardDescription>Upload an image and describe how you want to animate it. The video will match the aspect ratio of your uploaded image.</CardDescription>
+            <CardDescription>Upload an image and describe how you want to animate it. Choose your desired aspect ratio.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <FormField
@@ -192,9 +189,9 @@ export function ImageToVideoForm() {
                   <FormControl>
                     <div className="relative flex w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-input bg-muted/50 transition-colors hover:border-primary">
                       {imagePreview ? (
-                        <Image src={imagePreview} alt="Image preview" width={500} height={300} className="aspect-video w-full rounded-md object-contain" />
+                        <Image src={imagePreview} alt="Image preview" width={500} height={300} className="w-full rounded-md object-contain p-2" style={{ maxHeight: '40vh' }} />
                       ) : (
-                        <div className="flex flex-col items-center justify-center p-12">
+                        <div className="flex flex-col items-center justify-center p-12 aspect-video">
                           <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
                           <p className="text-sm text-muted-foreground">Click to upload or drag & drop</p>
                         </div>
@@ -220,40 +217,73 @@ export function ImageToVideoForm() {
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="personGeneration"
-              render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel>Person Generation</FormLabel>
-                  <FormControl>
-                    <RadioGroup
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      className="flex space-x-4"
-                    >
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="allow_adult" id="pg-allow" />
-                        </FormControl>
-                        <Label htmlFor="pg-allow" className="font-normal">Allow</Label>
-                      </FormItem>
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="dont_allow" id="pg-disallow" />
-                        </FormControl>
-                        <Label htmlFor="pg-disallow" className="font-normal">Do Not Allow</Label>
-                      </FormItem>
-                    </RadioGroup>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+              <FormField
+                control={form.control}
+                name="aspectRatio"
+                render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <FormLabel>Aspect Ratio</FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        className="flex space-x-4"
+                      >
+                        <FormItem className="flex items-center space-x-2 space-y-0">
+                          <FormControl>
+                            <RadioGroupItem value="16:9" id="ar-16-9" />
+                          </FormControl>
+                          <Label htmlFor="ar-16-9" className="font-normal">16:9 (Landscape)</Label>
+                        </FormItem>
+                        <FormItem className="flex items-center space-x-2 space-y-0">
+                          <FormControl>
+                            <RadioGroupItem value="9:16" id="ar-9-16" />
+                          </FormControl>
+                          <Label htmlFor="ar-9-16" className="font-normal">9:16 (Portrait)</Label>
+                        </FormItem>
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="personGeneration"
+                render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <FormLabel>Person Generation</FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        className="flex space-x-4"
+                      >
+                        <FormItem className="flex items-center space-x-2 space-y-0">
+                          <FormControl>
+                            <RadioGroupItem value="allow_adult" id="pg-allow" />
+                          </FormControl>
+                          <Label htmlFor="pg-allow" className="font-normal">Allow</Label>
+                        </FormItem>
+                        <FormItem className="flex items-center space-x-2 space-y-0">
+                          <FormControl>
+                            <RadioGroupItem value="dont_allow" id="pg-disallow" />
+                          </FormControl>
+                          <Label htmlFor="pg-disallow" className="font-normal">Do Not Allow</Label>
+                        </FormItem>
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
 
             {generatedVideo && (
-              <div className="w-full overflow-hidden rounded-lg border bg-muted">
-                <video src={generatedVideo} controls autoPlay muted loop className="h-full max-h-[60vh] w-full object-contain" />
+              <div className="w-full overflow-hidden rounded-lg border bg-muted flex justify-center">
+                <video src={generatedVideo} controls autoPlay muted loop className="h-full max-h-[60vh] w-auto object-contain" />
               </div>
             )}
             {isGenerating && !generatedVideo && (

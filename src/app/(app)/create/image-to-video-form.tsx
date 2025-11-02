@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -15,6 +15,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Sparkles, Upload } from 'lucide-react';
 import Image from 'next/image';
 import { PromptSuggestions } from '@/components/shared/prompt-suggestions';
+import { useAuth, useStorage, useUser } from '@/firebase';
+import { initiateAnonymousSignIn } from '@/firebase/non-blocking-login';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const formSchema = z.object({
   image: z.any().refine(file => file instanceof File, 'Please upload an image.'),
@@ -25,8 +28,18 @@ export function ImageToVideoForm() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [generatedVideo, setGeneratedVideo] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const { addMediaItem, addPromptItem } = useAppContext();
   const { toast } = useToast();
+  const storage = useStorage();
+  const auth = useAuth();
+  const { user, isUserLoading } = useUser();
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      initiateAnonymousSignIn(auth);
+    }
+  }, [user, isUserLoading, auth]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -35,16 +48,36 @@ export function ImageToVideoForm() {
     },
   });
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (file && user) {
+      setIsUploading(true);
       form.setValue('image', file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-        addMediaItem({ type: 'image', src: reader.result as string });
-      };
-      reader.readAsDataURL(file);
+
+      try {
+        const storageRef = ref(storage, `users/${user.uid}/uploads/${Date.now()}-${file.name}`);
+        await uploadBytes(storageRef, file);
+        const downloadURL = await getDownloadURL(storageRef);
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const dataUrl = reader.result as string;
+          setImagePreview(dataUrl); // Use data URL for local preview
+          // We will use the dataUrl for generation, but downloadURL could be used for other purposes
+        };
+        reader.readAsDataURL(file);
+
+        addMediaItem({ type: 'image', src: downloadURL }); // Store storage URL
+      } catch (error) {
+        console.error("Upload failed", error);
+        toast({
+          variant: "destructive",
+          title: "Upload Failed",
+          description: "Could not upload image to storage.",
+        });
+      } finally {
+        setIsUploading(false);
+      }
     }
   };
 
@@ -86,6 +119,8 @@ export function ImageToVideoForm() {
   
   const currentPrompt = form.watch('prompt');
 
+  const showUploadSpinner = isUploading || (isUserLoading && form.getValues('image'));
+
   return (
     <Card className="max-w-2xl">
       <Form {...form}>
@@ -111,7 +146,12 @@ export function ImageToVideoForm() {
                           <p className="text-sm text-muted-foreground">Click to upload or drag & drop</p>
                         </div>
                       )}
-                      <Input type="file" accept="image/*" className="absolute h-full w-full opacity-0" onChange={handleImageChange} />
+                       {showUploadSpinner && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                          <Loader2 className="h-8 w-8 animate-spin text-white" />
+                        </div>
+                      )}
+                      <Input type="file" accept="image/*" className="absolute h-full w-full opacity-0" onChange={handleImageChange} disabled={!user || isUploading} />
                     </div>
                   </FormControl>
                   <FormMessage />
@@ -145,7 +185,7 @@ export function ImageToVideoForm() {
           </CardContent>
           <CardFooter className="flex justify-between">
             <PromptSuggestions originalPrompt={currentPrompt} onSelectSuggestion={(suggestion) => form.setValue('prompt', suggestion)} />
-            <Button type="submit" disabled={isGenerating || !imagePreview} size="lg">
+            <Button type="submit" disabled={isGenerating || !imagePreview || isUploading} size="lg">
               {isGenerating ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

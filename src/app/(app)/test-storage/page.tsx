@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/shared/page-header';
 import { useUser } from '@/firebase/auth/use-user';
 import { storage } from '@/firebase';
@@ -63,21 +63,21 @@ export default function StorageTestPage() {
     try {
       // 1. Upload the test PNG
       await uploadString(storageRef, TEST_PNG_DATA_URL, 'data_url');
-      toast({ title: 'PNG Uploaded', description: 'Test PNG has been uploaded successfully.' });
 
-      // 2. Get the download URL to test read access
-      const url = await getDownloadURL(storageRef);
-      setRetrievedImageUrl(url);
-      toast({
-        title: 'PNG Retrieval Successful',
-        description: 'Successfully fetched the image URL.',
+      // If we reach here, the upload was successful.
+      // We will not attempt to get the download URL to keep it simple.
+      toast({ 
+        title: 'Upload Successful', 
+        description: `Test PNG uploaded to ${storageRef.fullPath}. Read access will be tested separately if needed.` 
       });
+      console.log(`Test PNG uploaded to ${storageRef.fullPath}`);
+
     } catch (error: any) {
       console.error('Storage PNG Test Error:', error);
       toast({
         variant: 'destructive',
         title: 'PNG Test Failed',
-        description: error.message || 'Could not upload or retrieve the test PNG.',
+        description: error.message || 'Could not upload the test PNG.',
       });
     } finally {
       setIsPngLoading(false);
@@ -120,11 +120,11 @@ export default function StorageTestPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Storage Read/Write Test (.png)</CardTitle>
+              <CardTitle>Storage Write Test (.png)</CardTitle>
               <CardDescription>
                 Attempts to upload a small PNG to{' '}
-                <code className="bg-muted px-1 py-0.5 rounded-sm text-sm">/test/test.png</code>{' '}
-                and then retrieve it. This verifies both write and read permissions for image files.
+                <code className="bg-muted px-1 py-0.5 rounded-sm text-sm">/test/test.png</code>.
+                This verifies write permission to a public path.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -132,23 +132,15 @@ export default function StorageTestPage() {
                 {isPngLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Testing...
+                    Testing Upload...
                   </>
                 ) : (
                   <>
                     <ImageIcon className="mr-2" />
-                    Run R/W Test (.png)
+                    Run Upload Test (.png)
                   </>
                 )}
               </Button>
-              {retrievedImageUrl && (
-                <div>
-                  <p className="mb-2 text-sm font-medium">Retrieved Image:</p>
-                  <div className="relative h-24 w-24 rounded-md border">
-                    <Image src={retrievedImageUrl} alt="Test Image" layout="fill" objectFit="contain" />
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
         </div>

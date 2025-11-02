@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { generateImageFromImage } from '@/ai/flows/generate-image-from-image';
 import { useAppContext } from '@/contexts/app-context';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Sparkles, Upload, Wand2 } from 'lucide-react';
+import { Loader2, Sparkles, Upload, Wand2, ArrowLeft } from 'lucide-react';
 import Image from 'next/image';
 import { PromptSuggestions } from '@/components/shared/prompt-suggestions';
 import { useUser } from '@/firebase/auth/use-user';
@@ -53,6 +53,17 @@ export function ImageToImageForm() {
         setImagePreview(reader.result as string);
       };
       reader.readAsDataURL(file);
+    }
+  };
+  
+  const handleReset = () => {
+    setGeneratedImage(null);
+    setImagePreview(null);
+    form.reset({ prompt: '' });
+    // This is a bit of a hack to clear the file input visually
+    const fileInput = document.getElementById('image-upload-input') as HTMLInputElement;
+    if (fileInput) {
+      fileInput.value = '';
     }
   };
 
@@ -185,7 +196,7 @@ export function ImageToImageForm() {
                               <p className="text-sm text-muted-foreground">Click to upload</p>
                             </div>
                           )}
-                          <Input type="file" accept="image/*" className="absolute h-full w-full opacity-0" onChange={handleImageChange} disabled={isButtonDisabled} />
+                          <Input id="image-upload-input" type="file" accept="image/*" className="absolute h-full w-full opacity-0" onChange={handleImageChange} disabled={isButtonDisabled || !!generatedImage} />
                         </div>
                       </FormControl>
                       <FormMessage />
@@ -215,7 +226,12 @@ export function ImageToImageForm() {
                 <FormItem>
                   <FormLabel>Modification Prompt</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="e.g., Change the background to a sunny beach, add a hat on the person" className="min-h-[100px] resize-y" {...field} />
+                    <Textarea 
+                      placeholder="e.g., Change the background to a sunny beach, add a hat on the person" 
+                      className="min-h-[100px] resize-y" 
+                      {...field}
+                      readOnly={!!generatedImage}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -223,20 +239,29 @@ export function ImageToImageForm() {
             />
           </CardContent>
           <CardFooter className="flex justify-between">
-            <PromptSuggestions originalPrompt={currentPrompt} onSelectSuggestion={(suggestion) => form.setValue('prompt', suggestion)} />
-            <Button type="submit" disabled={isButtonDisabled} size="lg">
-              {isGenerating ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="mr-2" />
-                  Generate Image
-                </>
-              )}
-            </Button>
+            {generatedImage ? (
+              <Button onClick={handleReset} type="button" variant="outline" size="lg">
+                <ArrowLeft className="mr-2" />
+                Generate Another
+              </Button>
+            ) : (
+              <>
+                <PromptSuggestions originalPrompt={currentPrompt} onSelectSuggestion={(suggestion) => form.setValue('prompt', suggestion)} />
+                <Button type="submit" disabled={isButtonDisabled} size="lg">
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2" />
+                      Generate Image
+                    </>
+                  )}
+                </Button>
+              </>
+            )}
           </CardFooter>
         </form>
       </Form>

@@ -72,7 +72,7 @@ export default function StorageTestPage() {
         <div className="grid gap-6">
           <Card>
             <CardHeader>
-              <CardTitle>Storage getDownloadURL Test</CardTitle>
+              <CardTitle>Storage R/W Test (.png)</CardTitle>
               <CardDescription>
                 Uploads a test PNG to <code className="bg-muted px-1 py-0.5 rounded-sm text-sm">/test/test.png</code>, 
                 then attempts to retrieve its public URL using the SDK's `getDownloadURL` method.
@@ -88,7 +88,7 @@ export default function StorageTestPage() {
                 ) : (
                   <>
                     <Beaker className="mr-2" />
-                    Run getDownloadURL Test
+                    Run R/W Test
                   </>
                 )}
               </Button>
@@ -101,10 +101,13 @@ export default function StorageTestPage() {
                         <code className="bg-muted px-1 py-0.5 rounded-sm">{result.path}</code>
                     </div>
                     {result.url && (
-                        <div className="flex items-start gap-2 text-sm">
-                            <LinkIcon className="h-4 w-4 text-muted-foreground mt-1" />
-                            <p>Download URL:</p>
-                            <a href={result.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline break-all">{result.url}</a>
+                        <div className="flex flex-col items-start gap-2 text-sm">
+                           <div className="flex items-center gap-2">
+                             <LinkIcon className="h-4 w-4 text-muted-foreground" />
+                             <p>Download URL:</p>
+                           </div>
+                            <a href={result.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline break-all ml-6">{result.url}</a>
+                            <Image src={result.url} alt="Test image" width={100} height={100} className="border rounded-md mt-2 ml-6" />
                         </div>
                     )}
                      {result.error && (

@@ -10,7 +10,6 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import {googleAI} from '@genkit-ai/google-genai';
-import * as mime from 'mime-types';
 
 const GenerateImageFromImageInputSchema = z.object({
   photoDataUri: z
@@ -56,13 +55,13 @@ const generateImageFromImageFlow = ai.defineFlow(
     }
 
     const {media, usage, custom} = await ai.generate({
-      model: googleAI.model('imagen-4.0-fast-generate-001'),
+      model: googleAI.model('gemini-2.5-flash-image-preview'),
       prompt: [
         {text: input.prompt},
         {media: {url: input.photoDataUri, contentType}},
       ],
       config: {
-        quality: 'high',
+        responseModalities: ['IMAGE'],
       },
     });
 
@@ -71,8 +70,7 @@ const generateImageFromImageFlow = ai.defineFlow(
     }
     
     // The model returns a PNG, let's ensure the data URI reflects that
-    const extension = mime.extension(media.contentType || 'image/png');
-    const imageDataUri = `data:${media.contentType || 'image/png'};base64,${media.url.split(',')[1]}`;
+    const imageDataUri = `data:image/png;base64,${media.url.split(',')[1]}`;
 
     return {
       imageDataUri,

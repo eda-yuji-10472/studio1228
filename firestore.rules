@@ -1,0 +1,132 @@
+/**
+ * @fileoverview Firestore Security Rules for VEO Studio Pro.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model. Each user has full control over their data,
+ * and no data is shared between users without explicit mechanisms (not yet implemented).
+ *
+ * Data Structure:
+ * The Firestore database is structured as follows:
+ * - /users/{userId}: Stores profile information for each user. 'userId' MUST match the Firebase Auth UID.
+ * - /users/{userId}/videos/{videoId}: Stores metadata for videos owned by the user.
+ * - /users/{userId}/images/{imageId}: Stores metadata for images owned by the user.
+ * - /users/{userId}/prompts/{promptId}: Stores prompts created by the user.
+ *
+ * Key Security Decisions:
+ * - No user listing is allowed.
+ * - Path-based ownership is enforced for all user-generated content (videos, images, prompts).
+ * - Data validation is limited to checks essential for authorization and relational integrity.
+ * - All write operations require authentication.
+ * - get() calls are avoided in security rules by denormalizing data when required.
+ *
+ * Denormalization for Authorization:
+ * Path-based ownership is used, so denormalization is not required for authorization. The `userId` in the path is sufficient.
+ *
+ * Structural Segregation:
+ * User-owned data is stored in user-specific subcollections, ensuring data privacy and simplifying queries.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Grants the user read/write access to their own profile document.
+     * @path /users/{userId}
+     * @allow (create) User with matching UID can create their profile.
+     * @allow (get, update, delete) Authenticated user with matching UID can read/write their profile.
+     * @deny (create) User cannot create a profile with a different UID.
+     * @deny (get, update, delete) User cannot read/write another user's profile.
+     * @principle Enforces document ownership for writes; read access granted only to the owner.
+     */
+    match /users/{userId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Grants the user read/write access to their own videos.
+     * @path /users/{userId}/videos/{videoId}
+     * @allow (create) Authenticated user can create videos under their UID.
+     * @allow (get, update, delete) Authenticated user with matching UID can read/write their own videos.
+     * @deny (create) User cannot create videos under another user's UID.
+     * @deny (get, update, delete) User cannot read/write another user's videos.
+     * @principle Enforces document ownership for writes; read access granted only to the owner.
+     */
+    match /users/{userId}/videos/{videoId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Grants the user read/write access to their own images.
+     * @path /users/{userId}/images/{imageId}
+     * @allow (create) Authenticated user can create images under their UID.
+     * @allow (get, update, delete) Authenticated user with matching UID can read/write their own images.
+     * @deny (create) User cannot create images under another user's UID.
+     * @deny (get, update, delete) User cannot read/write another user's images.
+     * @principle Enforces document ownership for writes; read access granted only to the owner.
+     */
+    match /users/{userId}/images/{imageId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Grants the user read/write access to their own prompts.
+     * @path /users/{userId}/prompts/{promptId}
+     * @allow (create) Authenticated user can create prompts under their UID.
+     * @allow (get, update, delete) Authenticated user with matching UID can read/write their own prompts.
+     * @deny (create) User cannot create prompts under another user's UID.
+     * @deny (get, update, delete) User cannot read/write another user's prompts.
+     * @principle Enforces document ownership for writes; read access granted only to the owner.
+     */
+    match /users/{userId}/prompts/{promptId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+  }
+}

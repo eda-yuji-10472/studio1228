@@ -1,0 +1,236 @@
+{
+  "entities": {
+    "Video": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Video",
+      "type": "object",
+      "description": "Represents a video stored in the media library.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the video."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N Video)"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the video."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the video."
+        },
+        "storageUrl": {
+          "type": "string",
+          "description": "URL of the video in Firebase Storage."
+        },
+        "thumbnailUrl": {
+          "type": "string",
+          "description": "URL of the video's thumbnail image."
+        },
+        "creationDate": {
+          "type": "string",
+          "description": "Date and time when the video was created.",
+          "format": "date-time"
+        },
+        "duration": {
+          "type": "number",
+          "description": "Duration of the video in seconds."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "title",
+        "storageUrl",
+        "creationDate"
+      ]
+    },
+    "Image": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Image",
+      "type": "object",
+      "description": "Represents an image stored in the media library.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the image."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N Image)"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the image."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the image."
+        },
+        "storageUrl": {
+          "type": "string",
+          "description": "URL of the image in Firebase Storage."
+        },
+        "creationDate": {
+          "type": "string",
+          "description": "Date and time when the image was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "title",
+        "storageUrl",
+        "creationDate"
+      ]
+    },
+    "Prompt": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Prompt",
+      "type": "object",
+      "description": "Represents a text prompt used for video generation.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the prompt."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N Prompt)"
+        },
+        "text": {
+          "type": "string",
+          "description": "The text of the prompt."
+        },
+        "creationDate": {
+          "type": "string",
+          "description": "Date and time when the prompt was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "text",
+        "creationDate"
+      ]
+    },
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user.",
+          "format": "email"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name of the user."
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "displayName"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profiles.  Documents are created via Firebase Authentication and contain basic user information.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user, corresponding to their Firebase Auth UID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/videos/{videoId}",
+        "definition": {
+          "entityName": "Video",
+          "schema": {
+            "$ref": "#/backend/entities/Video"
+          },
+          "description": "Stores video metadata.  The userId path segment ensures ownership. No denormalized authorization fields are needed because ownership is implicit in the path.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who owns the video."
+            },
+            {
+              "name": "videoId",
+              "description": "The unique identifier of the video."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/images/{imageId}",
+        "definition": {
+          "entityName": "Image",
+          "schema": {
+            "$ref": "#/backend/entities/Image"
+          },
+          "description": "Stores image metadata. The userId path segment ensures ownership. No denormalized authorization fields are needed because ownership is implicit in the path.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who owns the image."
+            },
+            {
+              "name": "imageId",
+              "description": "The unique identifier of the image."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/prompts/{promptId}",
+        "definition": {
+          "entityName": "Prompt",
+          "schema": {
+            "$ref": "#/backend/entities/Prompt"
+          },
+          "description": "Stores user-generated prompts. The userId path segment ensures ownership. No denormalized authorization fields are needed because ownership is implicit in the path.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who created the prompt."
+            },
+            {
+              "name": "promptId",
+              "description": "The unique identifier of the prompt."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to support VEO Studio Pro's core features, focusing on video generation from text and images, media library, and prompt history, while adhering to the principles of Authorization Independence, Clarity of Intent, DBAC, and QAPs.  It leverages path-based ownership for user-generated content (videos, images, prompts) to simplify security rules and maintain data integrity.\n\nAuthorization Independence is achieved by avoiding `get()` calls in security rules. Path-based ownership (`/users/{userId}/videos/{videoId}`) inherently grants access to the owner. Any data required for authorization within a subcollection is denormalized.  Since the application is centered around personal media and prompt usage, collaborative data structures using membership maps are not required, further simplifying authorization.\n\nQAPs (Rules are not Filters) is supported by segregating user-owned data into user-specific collections.  Listing videos, images, or prompts under `/users/{userId}` will only return data owned by that user, as enforced by the security rules. Global access is not needed in this application.\n\nThe choice of path-based ownership also helps with invariants by simplifying the enforcement of ownership.  Timestamps can be enforced via rules, and the structure encourages denormalization of user-specific data where needed for authorization, reducing the risk of inconsistencies."
+  }
+}

@@ -13,10 +13,6 @@ import {z} from 'genkit';
 import {googleAI} from '@genkit-ai/google-genai';
 import { proxyFetch } from './proxy-fetch';
 
-// A simple 1x1 transparent PNG as a base64 data URL
-const TEST_VIDEO_DATA_URL = 'data:video/mp4;base64,AAAAHGZ0eXBNNFYgAAACAGlzb21pc28yYXZjMQAAAAhmcmVlAAAAG21kYXQAAAGzABAHAAABthBgUY//';
-
-
 const GenerateVideoFromTextInputSchema = z.object({
   prompt: z.string().describe('The text prompt to use for video generation.'),
 });
@@ -50,18 +46,6 @@ const generateVideoFromTextFlow = ai.defineFlow(
     outputSchema: GenerateVideoFromTextOutputSchema,
   },
   async input => {
-    // DRY RUN: Return mock data to avoid calling the expensive VEO API.
-    return {
-      videoDataUri: TEST_VIDEO_DATA_URL,
-      usage: {
-        inputTokens: 100,
-        outputTokens: 200,
-        totalTokens: 300,
-      },
-      cacheHit: true, // Simulate a cache hit to make it fast
-    };
-    
-    /*
     let {operation, custom} = await ai.generate({
       model: googleAI.model('veo-3.0-generate-preview'),
       prompt: input.prompt,
@@ -99,6 +83,5 @@ const generateVideoFromTextFlow = ai.defineFlow(
       usage: operation.usage,
       cacheHit: custom?.cacheHit || false,
     };
-    */
   }
 );

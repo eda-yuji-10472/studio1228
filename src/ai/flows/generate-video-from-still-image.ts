@@ -44,6 +44,11 @@ const generateVideoFromStillImageFlow = ai.defineFlow(
     outputSchema: GenerateVideoFromStillImageOutputSchema,
   },
   async input => {
+    const contentType = input.photoDataUri.match(/data:(.*);base64,/)?.[1];
+    if (!contentType) {
+      throw new Error('Could not determine content type from data URI.');
+    }
+
     let {operation} = await ai.generate({
       model: googleAI.model('veo-3.0-generate-preview'),
       prompt: [
@@ -53,6 +58,7 @@ const generateVideoFromStillImageFlow = ai.defineFlow(
         {
           media: {
             url: input.photoDataUri,
+            contentType,
           },
         },
       ],

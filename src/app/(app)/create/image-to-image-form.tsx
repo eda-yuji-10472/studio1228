@@ -60,7 +60,6 @@ export function ImageToImageForm() {
     setGeneratedImage(null);
     setImagePreview(null);
     form.reset({ prompt: '' });
-    // This is a bit of a hack to clear the file input visually
     const fileInput = document.getElementById('image-upload-input') as HTMLInputElement;
     if (fileInput) {
       fileInput.value = '';
@@ -83,7 +82,6 @@ export function ImageToImageForm() {
     const imagesCollection = collection(firestore, 'users', user.uid, 'images');
     const newImageDocRef = doc(imagesCollection);
 
-    // Step 1: Create initial Firestore document.
     try {
       const initialImageData = {
         id: newImageDocRef.id,
@@ -125,12 +123,10 @@ export function ImageToImageForm() {
         const contentType = result.imageDataUri.match(/data:(.*);base64,/)?.[1] || 'image/png';
         const extension = mime.extension(contentType) || 'png';
         
-        // Upload generated image to Storage
         const imageRef = ref(storage, `users/${user.uid}/images/${newImageDocRef.id}.${extension}`);
         const uploadResult = await uploadString(imageRef, result.imageDataUri, 'data_url');
         const downloadURL = await getDownloadURL(uploadResult.ref);
 
-        // Update Firestore record with final data
         const finalImageData = {
           storageUrl: downloadURL,
           status: 'completed' as const,
@@ -170,6 +166,26 @@ export function ImageToImageForm() {
   const currentPrompt = form.watch('prompt');
   const isButtonDisabled = isGenerating || isUserLoading;
 
+  if (generatedImage) {
+    return (
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle>Generation Complete</CardTitle>
+          <CardDescription>Your new image has been successfully generated.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center gap-4">
+           <div className="relative w-full max-w-md aspect-square">
+             <Image src={generatedImage} alt="Generated image" fill className="object-contain rounded-md" />
+           </div>
+           <Button onClick={handleReset} type="button" variant="outline" size="lg">
+              <ArrowLeft className="mr-2" />
+              Generate Another
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <Card className="max-w-2xl">
       <Form {...form}>
@@ -196,7 +212,7 @@ export function ImageToImageForm() {
                               <p className="text-sm text-muted-foreground">Click to upload</p>
                             </div>
                           )}
-                          <Input id="image-upload-input" type="file" accept="image/*" className="absolute h-full w-full opacity-0" onChange={handleImageChange} disabled={isButtonDisabled || !!generatedImage} />
+                          <Input id="image-upload-input" type="file" accept="image/*" className="absolute h-full w-full opacity-0" onChange={handleImageChange} disabled={isButtonDisabled} />
                         </div>
                       </FormControl>
                       <FormMessage />
@@ -209,8 +225,6 @@ export function ImageToImageForm() {
                             <Loader2 className="h-8 w-8 animate-spin text-primary" />
                             <p className="text-sm text-muted-foreground">Generating image...</p>
                         </div>
-                    ) : generatedImage ? (
-                        <Image src={generatedImage} alt="Generated image" fill className="object-contain" />
                     ) : (
                         <div className="flex flex-col items-center justify-center text-center p-4">
                             <Wand2 className="h-10 w-10 text-muted-foreground mb-2"/>
@@ -220,52 +234,40 @@ export function ImageToImageForm() {
                 </div>
             </div>
             
-            {generatedImage ? (
-                <div className="flex justify-center">
-                    <Button onClick={handleReset} type="button" variant="outline" size="lg">
-                        <ArrowLeft className="mr-2" />
-                        Generate Another
-                    </Button>
-                </div>
-            ) : (
-                <FormField
-                control={form.control}
-                name="prompt"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Modification Prompt</FormLabel>
-                    <FormControl>
-                        <Textarea 
-                        placeholder="e.g., Change the background to a sunny beach, add a hat on the person" 
-                        className="min-h-[100px] resize-y" 
-                        {...field}
-                        readOnly={!!generatedImage}
-                        />
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
+            <FormField
+            control={form.control}
+            name="prompt"
+            render={({ field }) => (
+                <FormItem>
+                <FormLabel>Modification Prompt</FormLabel>
+                <FormControl>
+                    <Textarea 
+                    placeholder="e.g., Change the background to a sunny beach, add a hat on the person" 
+                    className="min-h-[100px] resize-y" 
+                    {...field}
+                    />
+                </FormControl>
+                <FormMessage />
+                </FormItem>
             )}
+            />
           </CardContent>
-          {!generatedImage && (
-            <CardFooter className="flex justify-between">
-              <PromptSuggestions originalPrompt={currentPrompt} onSelectSuggestion={(suggestion) => form.setValue('prompt', suggestion)} />
-              <Button type="submit" disabled={isButtonDisabled} size="lg">
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-2" />
-                    Generate Image
-                  </>
-                )}
-              </Button>
-            </CardFooter>
-          )}
+          <CardFooter className="flex justify-between">
+            <PromptSuggestions originalPrompt={currentPrompt} onSelectSuggestion={(suggestion) => form.setValue('prompt', suggestion)} />
+            <Button type="submit" disabled={isButtonDisabled} size="lg">
+              {isGenerating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2" />
+                  Generate Image
+                </>
+              )}
+            </Button>
+          </CardFooter>
         </form>
       </Form>
     </Card>

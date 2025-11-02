@@ -127,8 +127,8 @@ const generateVideoFromStillImageFlow = ai.defineFlow(
       await new Promise(resolve => setTimeout(resolve, 5000));
     }
 
-    const finishReason = operation.output?.candidates[0]?.finishReason;
-    const safetyRatings = operation.output?.candidates[0]?.safetyRatings;
+    const finishReason = operation.output?.candidates?.[0]?.finishReason;
+    const safetyRatings = operation.output?.candidates?.[0]?.safetyRatings;
     
     if (operation.error) {
       // Even if there's an error, we might have safety data to return.

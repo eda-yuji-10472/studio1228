@@ -57,8 +57,12 @@ const generateVideoFromStillImageFlow = ai.defineFlow(
       throw new Error('Could not determine content type from data URI.');
     }
 
+    const modelToUse = input.aspectRatio === '9:16' 
+      ? 'veo-2.0-generate-001' 
+      : 'veo-3.0-generate-preview';
+
     let {operation, custom} = await ai.generate({
-      model: googleAI.model('veo-2.0-generate-001'),
+      model: googleAI.model(modelToUse),
       prompt: [
         {
           text: input.prompt,

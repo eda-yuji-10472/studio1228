@@ -70,39 +70,43 @@ export function ImageToVideoForm() {
     setIsGenerating(true);
     setGeneratedVideo(null);
     
-    // 1. Create initial record in Firestore for the video generation job
     const videosCollection = collection(firestore, 'users', user.uid, 'videos');
     const newVideoDocRef = doc(videosCollection);
-    const initialVideoData = {
-      id: newVideoDocRef.id,
-      userId: user.uid,
-      title: values.prompt,
-      prompt: values.prompt,
-      storageUrl: '',
-      thumbnailUrl: '',
-      type: 'video' as const,
-      status: 'processing',
-      createdAt: serverTimestamp(),
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0,
-    };
-    
-    try {
-      // Create the document first to track the process
-      await setDoc(newVideoDocRef, initialVideoData).catch(error => {
-        errorEmitter.emit(
-          'permission-error',
-          new FirestorePermissionError({
-            path: newVideoDocRef.path,
-            operation: 'create',
-            requestResourceData: initialVideoData,
-          })
-        );
-        throw error; // re-throw to be caught by outer catch
-      });
 
-      // 2. Upload source image to get its URL for the thumbnail
+    // Step 1: Create the initial document in Firestore to track the job.
+    try {
+      const initialVideoData = {
+        id: newVideoDocRef.id,
+        userId: user.uid,
+        title: values.prompt,
+        prompt: values.prompt,
+        storageUrl: '',
+        thumbnailUrl: '',
+        type: 'video' as const,
+        status: 'processing',
+        createdAt: serverTimestamp(),
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+      };
+      await setDoc(newVideoDocRef, initialVideoData).catch(error => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: newVideoDocRef.path, operation: 'create', requestResourceData: initialVideoData }));
+        throw error;
+      });
+    } catch (error: any) {
+      console.error('Failed to create initial Firestore document:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Firestore Error',
+        description: `Could not create tracking document. ${error.message}`,
+      });
+      setIsGenerating(false);
+      return; // Stop execution if we can't even create the initial doc.
+    }
+
+    // Step 2-5: Perform the generation, uploads, and final update.
+    try {
+      // Upload source image to get its URL for the thumbnail
       const imageFileName = `${Date.now()}-${sourceImageFile.name}`;
       const imageRef = ref(storage, `users/${user.uid}/images/${imageFileName}`);
       const imageUploadResult = await uploadBytes(imageRef, sourceImageFile);
@@ -124,22 +128,22 @@ export function ImageToVideoForm() {
         throw error;
       });
 
-      // 3. Generate video using the uploaded image data URI
+      // Generate video using the uploaded image data URI
       addPromptItem({ text: values.prompt });
       const result = await generateVideoFromStillImage({ photoDataUri: imagePreview, prompt: values.prompt });
       
       if (result.videoDataUri) {
         setGeneratedVideo(result.videoDataUri);
         
-        // 4. Upload generated video to Storage
+        // Upload generated video to Storage
         const videoRef = ref(storage, `users/${user.uid}/videos/${newVideoDocRef.id}.mp4`);
         const uploadResult = await uploadString(videoRef, result.videoDataUri, 'data_url');
         const downloadURL = await getDownloadURL(uploadResult.ref);
 
-        // 5. Update Firestore record with final data
+        // Update Firestore record with final data
         const finalVideoData = {
           storageUrl: downloadURL,
-          thumbnailUrl: sourceImageUrl, // Use the uploaded source image URL as the thumbnail
+          thumbnailUrl: sourceImageUrl,
           status: 'completed' as const,
           inputTokens: result.usage?.inputTokens || 0,
           outputTokens: result.usage?.outputTokens || 0,

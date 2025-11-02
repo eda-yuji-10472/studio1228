@@ -52,50 +52,51 @@ export function TextToVideoForm() {
     setIsGenerating(true);
     setGeneratedVideo(null);
 
-    // 1. Create initial record in Firestore
     const videosCollection = collection(firestore, 'users', user.uid, 'videos');
     const newVideoDocRef = doc(videosCollection);
-    const initialVideoData = {
-      id: newVideoDocRef.id,
-      userId: user.uid,
-      title: values.prompt,
-      prompt: values.prompt,
-      storageUrl: '',
-      type: 'video' as const,
-      status: 'processing',
-      createdAt: serverTimestamp(),
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0,
-    };
-
+    
+    // Step 1: Create initial record in Firestore
     try {
-      // Ensure the initial record is created before doing anything else.
+      const initialVideoData = {
+        id: newVideoDocRef.id,
+        userId: user.uid,
+        title: values.prompt,
+        prompt: values.prompt,
+        storageUrl: '',
+        type: 'video' as const,
+        status: 'processing',
+        createdAt: serverTimestamp(),
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+      };
       await setDoc(newVideoDocRef, initialVideoData).catch(error => {
-        errorEmitter.emit(
-          'permission-error',
-          new FirestorePermissionError({
-            path: newVideoDocRef.path,
-            operation: 'create',
-            requestResourceData: initialVideoData,
-          })
-        );
-        throw error; // Re-throw to be caught by the main catch block
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: newVideoDocRef.path, operation: 'create', requestResourceData: initialVideoData }));
+        throw error;
       });
+    } catch (error: any) {
+        console.error('Failed to create initial Firestore document:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Firestore Error',
+          description: `Could not create tracking document. ${error.message}`,
+        });
+        setIsGenerating(false);
+        return; // Stop if we can't create the initial doc.
+    }
 
-      // 2. Generate video
+    // Step 2-4: Generate, upload, and update.
+    try {
       addPromptItem({ text: values.prompt });
       const result = await generateVideoFromText({ prompt: values.prompt });
       
       if (result.videoDataUri) {
         setGeneratedVideo(result.videoDataUri);
         
-        // 3. Upload video to Storage
         const videoRef = ref(storage, `users/${user.uid}/videos/${newVideoDocRef.id}.mp4`);
         const uploadResult = await uploadString(videoRef, result.videoDataUri, 'data_url');
         const downloadURL = await getDownloadURL(uploadResult.ref);
 
-        // 4. Update Firestore record with results
         const finalVideoData = {
           storageUrl: downloadURL,
           status: 'completed',
@@ -105,14 +106,7 @@ export function TextToVideoForm() {
         };
 
         await updateDoc(newVideoDocRef, finalVideoData).catch(error => {
-          errorEmitter.emit(
-            'permission-error',
-            new FirestorePermissionError({
-              path: newVideoDocRef.path,
-              operation: 'update',
-              requestResourceData: finalVideoData,
-            })
-          );
+          errorEmitter.emit('permission-error', new FirestorePermissionError({ path: newVideoDocRef.path, operation: 'update', requestResourceData: finalVideoData }));
           throw error;
         });
 
@@ -125,7 +119,6 @@ export function TextToVideoForm() {
       }
     } catch (error: any) {
       console.error(error);
-      // 5. Update record with error status
       const errorData = { status: 'failed', error: error.message || 'Unknown error' };
       await updateDoc(newVideoDocRef, errorData).catch(updateError => {
         console.error("Failed to update doc with error state:", updateError);

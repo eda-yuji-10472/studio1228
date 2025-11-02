@@ -8,10 +8,8 @@ import { useUser } from '@/firebase/auth/use-user';
 import { storage } from '@/firebase';
 import { ref, uploadString, getBytes } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
-import { Beaker, Loader2, Image as ImageIcon, Link as LinkIcon, AlertCircle } from 'lucide-react';
+import { Beaker, Loader2, Image as ImageIcon } from 'lucide-react';
 import Image from 'next/image';
-import { Input } from '@/components/ui/input';
-import { proxyFetch } from '@/ai/flows/proxy-fetch';
 
 // A simple 1x1 transparent PNG as a base64 data URL
 const TEST_PNG_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
@@ -21,13 +19,6 @@ export default function StorageTestPage() {
   const [retrievedImageUrl, setRetrievedImageUrl] = useState<string | null>(null);
   const { user, isLoading: isUserLoading } = useUser();
   const { toast } = useToast();
-
-  // State for the new Direct URL Fetch test
-  const [isUrlLoading, setIsUrlLoading] = useState(false);
-  const [testUrl, setTestUrl] = useState('https://firebasestorage.googleapis.com/v0/b/striped-proxy-187410.firebasestorage.app/o/test%2Ftest.png?alt=media&token=70e64276-754d-48eb-baf5-2718ccdead5d');
-  const [fetchedImageUrl, setFetchedImageUrl] = useState<string | null>(null);
-  const [testUrlError, setTestUrlError] = useState<string | null>(null);
-
 
   const handlePngTest = async () => {
     if (isUserLoading || !user) {
@@ -73,35 +64,6 @@ export default function StorageTestPage() {
       setIsPngLoading(false);
     }
   };
-  
-  const handleUrlTest = async () => {
-    if (!testUrl) {
-      setTestUrlError('Please enter a URL to test.');
-      return;
-    }
-    setIsUrlLoading(true);
-    setFetchedImageUrl(null);
-    setTestUrlError(null);
-    try {
-        // Use the server-side proxy flow to bypass CORS
-        const result = await proxyFetch({ url: testUrl });
-        
-        if (result.dataUri) {
-            setFetchedImageUrl(result.dataUri);
-            toast({ title: 'Success', description: 'The URL was fetched successfully via proxy.'});
-        } else {
-            throw new Error('Proxy fetch returned no data.');
-        }
-
-    } catch (error: any) {
-        console.error("Proxy URL Fetch Error:", error);
-        setTestUrlError(`Proxy fetch failed: ${error.message}. Check the server console for more details.`);
-        toast({ variant: 'destructive', title: 'Proxy Fetch Failed', description: error.message });
-    } finally {
-        setIsUrlLoading(false);
-    }
-  };
-
 
   return (
     <div className="flex flex-1 flex-col">
@@ -110,62 +72,13 @@ export default function StorageTestPage() {
         description="Use this page to test writing and reading files to/from Firebase Storage."
       />
       <main className="flex-1 p-6 pt-0">
-        <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
-
-          <Card>
-            <CardHeader>
-              <CardTitle>URL Proxy Fetch Test</CardTitle>
-              <CardDescription>
-                Paste a URL to test if it can be fetched by the server-side proxy. This bypasses browser CORS issues.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-               <div className="space-y-2">
-                 <Input 
-                   type="url"
-                   value={testUrl}
-                   onChange={(e) => setTestUrl(e.target.value)}
-                   placeholder="Enter Firebase Storage URL"
-                   disabled={isUrlLoading}
-                 />
-                 <Button onClick={handleUrlTest} disabled={isUrlLoading || isUserLoading}>
-                  {isUrlLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Testing...
-                    </>
-                  ) : (
-                    <>
-                      <LinkIcon className="mr-2" />
-                      Test URL Fetch via Proxy
-                    </>
-                  )}
-                </Button>
-               </div>
-               
-              {fetchedImageUrl && (
-                 <div>
-                    <p className="text-sm font-medium">Image fetched successfully:</p>
-                    <div className="mt-2 w-24 h-24 border rounded-md p-2">
-                      <Image src={fetchedImageUrl} alt="Fetched from URL" width={96} height={96} unoptimized/>
-                    </div>
-                 </div>
-              )}
-               {testUrlError && (
-                 <div className="p-3 rounded-md bg-destructive/10 text-destructive-foreground border border-destructive/50 text-sm flex items-start gap-3">
-                   <AlertCircle className="h-5 w-5 shrink-0" />
-                   <p>{testUrlError}</p>
-                 </div>
-               )}
-            </CardContent>
-          </Card>
-          
+        <div className="grid gap-6">
           <Card>
             <CardHeader>
               <CardTitle>SDK R/W Test (.png)</CardTitle>
               <CardDescription>
                 Uploads a PNG to <code className="bg-muted px-1 py-0.5 rounded-sm text-sm">/test/test.png</code>, 
-                then retrieves its data using the SDK's `getBytes` method.
+                then retrieves its data using the SDK's `getBytes` method. This verifies if security rules are correct.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -192,7 +105,6 @@ export default function StorageTestPage() {
               )}
             </CardContent>
           </Card>
-
         </div>
       </main>
     </div>

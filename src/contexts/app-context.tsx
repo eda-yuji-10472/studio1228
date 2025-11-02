@@ -3,13 +3,10 @@
 import type { MediaItem, PromptItem } from '@/lib/types';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
-const MAX_IMAGE_ITEMS = 10;
-const MAX_PROMPT_ITEMS = 10;
+const MAX_PROMPT_ITEMS = 20;
 
 interface AppContextType {
-  mediaItems: MediaItem[];
   promptHistory: PromptItem[];
-  addMediaItem: (item: Omit<MediaItem, 'id' | 'createdAt'>) => void;
   addPromptItem: (item: Omit<PromptItem, 'id' | 'createdAt'>) => void;
   isHydrated: boolean;
 }
@@ -17,26 +14,17 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [promptHistory, setPromptHistory] = useState<PromptItem[]>([]);
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
     try {
-      const storedMedia = localStorage.getItem('mediaItems');
-      if (storedMedia) {
-        // We only load images now to be safe
-        const images = JSON.parse(storedMedia).filter((item: MediaItem) => item.type === 'image');
-        setMediaItems(images);
-      }
       const storedPrompts = localStorage.getItem('promptHistory');
       if (storedPrompts) {
         setPromptHistory(JSON.parse(storedPrompts));
       }
     } catch (error) {
       console.error("Failed to parse from localStorage, clearing for safety.", error);
-      // If parsing fails, clear the storage to prevent future errors
-      localStorage.removeItem('mediaItems');
       localStorage.removeItem('promptHistory');
     }
     setIsHydrated(true);
@@ -45,50 +33,25 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   useEffect(() => {
     if (isHydrated) {
       try {
-        // Only persist images to local storage
-        const imagesToStore = mediaItems.filter(item => item.type === 'image').slice(0, MAX_IMAGE_ITEMS);
-        localStorage.setItem('mediaItems', JSON.stringify(imagesToStore));
+        const itemsToStore = promptHistory.slice(0, MAX_PROMPT_ITEMS);
+        localStorage.setItem('promptHistory', JSON.stringify(itemsToStore));
       } catch (error) {
-        console.error("Failed to save mediaItems to localStorage", error);
+        console.error("Failed to save promptHistory to localStorage", error);
       }
-    }
-  }, [mediaItems, isHydrated]);
-
-  useEffect(() => {
-    if (isHydrated) {
-        try {
-            const itemsToStore = promptHistory.slice(0, MAX_PROMPT_ITEMS);
-            localStorage.setItem('promptHistory', JSON.stringify(itemsToStore));
-        } catch (error) {
-            console.error("Failed to save promptHistory to localStorage", error);
-        }
     }
   }, [promptHistory, isHydrated]);
 
-  const addMediaItem = useCallback((item: Omit<MediaItem, 'id' | 'createdAt'>) => {
-    const newItem = { ...item, id: new Date().toISOString(), createdAt: new Date().toISOString() };
-    
-    // Non-image items (like videos) are added to state for immediate viewing but not persisted long-term
-    if (item.type !== 'image') {
-       setMediaItems(prev => [newItem, ...prev.filter(i => i.type === 'image')]);
-       return;
-    }
-
-    // Images are added and will be persisted, ensuring the list is capped
-    setMediaItems(prev => [newItem, ...prev.filter(i => i.type === 'image')].slice(0, MAX_IMAGE_ITEMS));
-  }, []);
-
   const addPromptItem = useCallback((item: Omit<PromptItem, 'id' | 'createdAt'>) => {
     setPromptHistory(prev => {
-        // Avoid adding duplicate prompts
-        if (prev.some(p => p.text === item.text)) {
-            return prev;
-        }
-        return [{ ...item, id: new Date().toISOString(), createdAt: new Date().toISOString() }, ...prev].slice(0, MAX_PROMPT_ITEMS);
+      if (prev.some(p => p.text === item.text)) {
+        return prev;
+      }
+      const newItem = { ...item, id: new Date().toISOString(), createdAt: new Date().toISOString() };
+      return [newItem, ...prev].slice(0, MAX_PROMPT_ITEMS);
     });
   }, []);
 
-  const value = { mediaItems, promptHistory, addMediaItem, addPromptItem, isHydrated };
+  const value = { promptHistory, addPromptItem, isHydrated };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };

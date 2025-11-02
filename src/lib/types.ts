@@ -1,9 +1,13 @@
 export type MediaItem = {
   id: string;
   type: 'video' | 'image';
-  src: string; // data URI or URL
+  storageUrl: string; // Firebase Storage URL
+  thumbnailUrl?: string; // Optional: for videos
   prompt?: string;
   createdAt: string;
+  duration?: number;
+  title: string;
+  userId: string;
 };
 
 export type PromptItem = {

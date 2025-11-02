@@ -5,17 +5,81 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppContext } from '@/contexts/app-context';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MediaCard } from '@/components/shared/media-card';
-import { Bot, FileText, Image, Video } from 'lucide-react';
+import { Bot, FileText, Image as ImageIcon, Video } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { PromptSuggestions } from '@/components/shared/prompt-suggestions';
+import { useCollection, useFirestore, useUser } from '@/firebase';
+import { useMemo } from 'react';
+import { collection, query, orderBy } from 'firebase/firestore';
+import type { MediaItem } from '@/lib/types';
+
+
+function MediaGrid() {
+  const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
+
+  const videosQuery = useMemo(() => {
+    if (!user) return null;
+    return query(collection(firestore, 'users', user.uid, 'videos'), orderBy('createdAt', 'desc'));
+  }, [user, firestore]);
+
+  const imagesQuery = useMemo(() => {
+    if (!user) return null;
+    return query(collection(firestore, 'users', user.uid, 'images'), orderBy('createdAt', 'desc'));
+  }, [user, firestore]);
+
+  const { data: videos, isLoading: isLoadingVideos } = useCollection<MediaItem>(videosQuery as any);
+  const { data: images, isLoading: isLoadingImages } = useCollection<MediaItem>(imagesQuery as any);
+
+  const isLoading = isUserLoading || isLoadingVideos || isLoadingImages;
+
+  const allMedia: MediaItem[] = useMemo(() => {
+    const combined = [...(videos || []), ...(images || [])];
+    // Firestore's serverTimestamp can be null briefly, so handle that
+    combined.sort((a, b) => {
+        const dateA = (a.createdAt as any)?.toDate?.() || 0;
+        const dateB = (b.createdAt as any)?.toDate?.() || 0;
+        return dateB - dateA;
+    });
+    return combined;
+  }, [videos, images]);
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="space-y-2">
+            <Skeleton className="aspect-video w-full" />
+            <Skeleton className="h-4 w-3/4" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (allMedia.length === 0) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center rounded-lg border-2 border-dashed">
+        <ImageIcon className="mb-4 h-12 w-12 text-muted-foreground" />
+        <h3 className="text-lg font-semibold">Your media library is empty</h3>
+        <p className="text-sm text-muted-foreground">Start by creating a new video or image.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {allMedia.map(item => <MediaCard key={item.id} item={item} />)}
+    </div>
+  );
+}
+
 
 export default function LibraryPage() {
-  const { mediaItems, promptHistory, isHydrated } = useAppContext();
+  const { promptHistory, isHydrated } = useAppContext();
   
   const handleSuggestionSelect = (suggestion: string) => {
-    // In a real app, this might copy the prompt or navigate to the create page
     navigator.clipboard.writeText(suggestion);
-    // You could also add a toast notification here
   };
 
   return (
@@ -38,26 +102,7 @@ export default function LibraryPage() {
           </TabsList>
           
           <TabsContent value="media" className="mt-6">
-            {!isHydrated ? (
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="space-y-2">
-                    <Skeleton className="aspect-video w-full" />
-                    <Skeleton className="h-4 w-3/4" />
-                  </div>
-                ))}
-              </div>
-            ) : mediaItems.length > 0 ? (
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {mediaItems.map(item => <MediaCard key={item.id} item={item} />)}
-              </div>
-            ) : (
-              <div className="flex h-64 flex-col items-center justify-center rounded-lg border-2 border-dashed">
-                <Image className="mb-4 h-12 w-12 text-muted-foreground" />
-                <h3 className="text-lg font-semibold">Your media library is empty</h3>
-                <p className="text-sm text-muted-foreground">Start by creating a new video or image.</p>
-              </div>
-            )}
+            <MediaGrid />
           </TabsContent>
 
           <TabsContent value="prompts" className="mt-6">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -15,22 +15,57 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Sparkles, Upload } from 'lucide-react';
 import Image from 'next/image';
 import { PromptSuggestions } from '@/components/shared/prompt-suggestions';
-import { useStorage, useUser } from '@/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { useFirestore, useStorage, useUser } from '@/firebase';
+import { ref, uploadBytes, getDownloadURL, uploadString } from 'firebase/storage';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const formSchema = z.object({
   image: z.any().refine(file => file instanceof File, 'Please upload an image.'),
   prompt: z.string().min(10, 'Prompt must be at least 10 characters long.'),
 });
 
+async function saveMediaToStorageAndFirestore(
+  storage: any,
+  firestore: any,
+  userId: string,
+  prompt: string,
+  videoDataUri: string,
+  sourceImageUrl: string
+) {
+  if (!videoDataUri.startsWith('data:video/mp4;base64,')) {
+    throw new Error('Invalid video data URI format.');
+  }
+
+  // 1. Upload generated video to Firebase Storage
+  const videoRef = ref(storage, `users/${userId}/videos/${new Date().getTime()}.mp4`);
+  const uploadResult = await uploadString(videoRef, videoDataUri, 'data_url');
+  const downloadURL = await getDownloadURL(uploadResult.ref);
+
+  // 2. Save video metadata to Firestore
+  const videosCollection = collection(firestore, 'users', userId, 'videos');
+  await addDoc(videosCollection, {
+    userId: userId,
+    title: prompt,
+    prompt: prompt,
+    storageUrl: downloadURL,
+    thumbnailUrl: sourceImageUrl, // Use the source image as the thumbnail
+    type: 'video',
+    createdAt: serverTimestamp(),
+  });
+
+  return downloadURL;
+}
+
 export function ImageToVideoForm() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [sourceImageFile, setSourceImageFile] = useState<File | null>(null);
   const [generatedVideo, setGeneratedVideo] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const { addMediaItem, addPromptItem } = useAppContext();
+  const { addPromptItem } = useAppContext();
   const { toast } = useToast();
   const storage = useStorage();
+  const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -40,77 +75,87 @@ export function ImageToVideoForm() {
     },
   });
 
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && user) {
-      setIsUploading(true);
+    if (file) {
       form.setValue('image', file);
-
-      try {
-        const storageRef = ref(storage, `users/${user.uid}/uploads/${Date.now()}-${file.name}`);
-        await uploadBytes(storageRef, file);
-        const downloadURL = await getDownloadURL(storageRef);
-
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const dataUrl = reader.result as string;
-          setImagePreview(dataUrl); // Use data URL for local preview
-        };
-        reader.readAsDataURL(file);
-
-        addMediaItem({ type: 'image', src: downloadURL }); // Store storage URL
-      } catch (error) {
-        console.error("Upload failed", error);
-        toast({
-          variant: "destructive",
-          title: "Upload Failed",
-          description: "Could not upload image to storage.",
-        });
-      } finally {
-        setIsUploading(false);
-      }
+      setSourceImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    if (!imagePreview) {
+    if (!user) {
+      toast({ variant: 'destructive', title: 'Authentication Error', description: 'Please log in to generate media.' });
+      return;
+    }
+    if (!sourceImageFile || !imagePreview) {
       toast({ variant: 'destructive', title: 'No Image', description: 'Please upload an image to animate.' });
       return;
     }
+
     setIsGenerating(true);
+    setIsUploading(true); // Indicate that the initial upload is starting
     setGeneratedVideo(null);
+    
+    let sourceImageUrl = '';
+
     try {
+      // 1. Upload source image first
+      const imageRef = ref(storage, `users/${user.uid}/images/${Date.now()}-${sourceImageFile.name}`);
+      const imageUploadResult = await uploadBytes(imageRef, sourceImageFile);
+      sourceImageUrl = await getDownloadURL(imageUploadResult.ref);
+      
+      // Save image metadata to Firestore
+      const imagesCollection = collection(firestore, 'users', user.uid, 'images');
+      await addDoc(imagesCollection, {
+        userId: user.uid,
+        title: sourceImageFile.name,
+        storageUrl: sourceImageUrl,
+        type: 'image',
+        createdAt: serverTimestamp(),
+      });
+
+      setIsUploading(false); // Initial upload finished
+
+      // 2. Generate video
       addPromptItem({ text: values.prompt });
       const result = await generateVideoFromStillImage({ photoDataUri: imagePreview, prompt: values.prompt });
+
       if (result.videoDataUri) {
         setGeneratedVideo(result.videoDataUri);
-        addMediaItem({
-          type: 'video',
-          src: result.videoDataUri,
-          prompt: values.prompt,
-        });
+        
+        // 3. Save generated video and its metadata
+        await saveMediaToStorageAndFirestore(storage, firestore, user.uid, values.prompt, result.videoDataUri, sourceImageUrl);
+
         toast({
           title: 'Success!',
-          description: 'Your animated video has been generated and added to your library.',
+          description: 'Your animated video has been generated and saved to your library.',
         });
+
       } else {
         throw new Error('Video generation failed to return a video.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
       toast({
         variant: 'destructive',
-        title: 'Generation Failed',
-        description: 'Something went wrong while generating your video. Please try again.',
+        title: 'Operation Failed',
+        description: error.message || 'Something went wrong during the process. Please try again.',
       });
     } finally {
       setIsGenerating(false);
+      setIsUploading(false);
     }
   };
   
   const currentPrompt = form.watch('prompt');
 
-  const isButtonDisabled = isGenerating || !imagePreview || isUploading || isUserLoading;
+  const isButtonDisabled = isGenerating || isUploading || isUserLoading;
 
   return (
     <Card className="max-w-2xl">
@@ -137,12 +182,12 @@ export function ImageToVideoForm() {
                           <p className="text-sm text-muted-foreground">Click to upload or drag & drop</p>
                         </div>
                       )}
-                       {isUploading && (
+                       {(isUploading && !isGenerating) && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                          <Loader2 className="h-8 w-8 animate-spin text-white" />
+                          <p className="text-white flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Uploading...</p>
                         </div>
                       )}
-                      <Input type="file" accept="image/*" className="absolute h-full w-full opacity-0" onChange={handleImageChange} disabled={isUserLoading || isUploading} />
+                      <Input type="file" accept="image/*" className="absolute h-full w-full opacity-0" onChange={handleImageChange} disabled={isButtonDisabled} />
                     </div>
                   </FormControl>
                   <FormMessage />
@@ -177,10 +222,10 @@ export function ImageToVideoForm() {
           <CardFooter className="flex justify-between">
             <PromptSuggestions originalPrompt={currentPrompt} onSelectSuggestion={(suggestion) => form.setValue('prompt', suggestion)} />
             <Button type="submit" disabled={isButtonDisabled} size="lg">
-              {isGenerating ? (
+              {isGenerating || isUploading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Generating...
+                  {isGenerating ? 'Generating...' : 'Uploading...'}
                 </>
               ) : (
                 <>

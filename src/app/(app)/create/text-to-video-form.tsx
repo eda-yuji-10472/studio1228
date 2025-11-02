@@ -13,16 +13,52 @@ import { useAppContext } from '@/contexts/app-context';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Sparkles } from 'lucide-react';
 import { PromptSuggestions } from '@/components/shared/prompt-suggestions';
+import { useFirestore, useStorage, useUser } from '@/firebase';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const formSchema = z.object({
   prompt: z.string().min(10, 'Prompt must be at least 10 characters long.'),
 });
 
+async function saveVideoToStorageAndFirestore(
+  storage: any,
+  firestore: any,
+  userId: string,
+  prompt: string,
+  videoDataUri: string
+) {
+  if (!videoDataUri.startsWith('data:video/mp4;base64,')) {
+    throw new Error('Invalid video data URI format.');
+  }
+
+  // 1. Upload video to Firebase Storage
+  const videoRef = ref(storage, `users/${userId}/videos/${new Date().getTime()}.mp4`);
+  const uploadResult = await uploadString(videoRef, videoDataUri, 'data_url');
+  const downloadURL = await getDownloadURL(uploadResult.ref);
+
+  // 2. Save metadata to Firestore
+  const videosCollection = collection(firestore, 'users', userId, 'videos');
+  await addDoc(videosCollection, {
+    userId: userId,
+    title: prompt,
+    prompt: prompt,
+    storageUrl: downloadURL,
+    type: 'video',
+    createdAt: serverTimestamp(),
+  });
+
+  return downloadURL;
+}
+
 export function TextToVideoForm() {
   const [generatedVideo, setGeneratedVideo] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const { addMediaItem, addPromptItem } = useAppContext();
+  const { addPromptItem } = useAppContext();
   const { toast } = useToast();
+  const { user, isUserLoading } = useUser();
+  const storage = useStorage();
+  const firestore = useFirestore();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -32,31 +68,40 @@ export function TextToVideoForm() {
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (!user) {
+      toast({
+        variant: 'destructive',
+        title: 'Authentication Error',
+        description: 'You must be logged in to generate videos.',
+      });
+      return;
+    }
+
     setIsGenerating(true);
     setGeneratedVideo(null);
+
     try {
       addPromptItem({ text: values.prompt });
       const result = await generateVideoFromText({ prompt: values.prompt });
+      
       if (result.videoDataUri) {
         setGeneratedVideo(result.videoDataUri);
-        addMediaItem({
-          type: 'video',
-          src: result.videoDataUri,
-          prompt: values.prompt,
-        });
+        
+        await saveVideoToStorageAndFirestore(storage, firestore, user.uid, values.prompt, result.videoDataUri);
+
         toast({
           title: 'Success!',
-          description: 'Your video has been generated and added to your library.',
+          description: 'Your video has been generated and saved to your library.',
         });
       } else {
         throw new Error('Video generation failed to return a video.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
       toast({
         variant: 'destructive',
         title: 'Generation Failed',
-        description: 'Something went wrong while generating your video. Please try again.',
+        description: error.message || 'Something went wrong while generating or saving your video. Please try again.',
       });
     } finally {
       setIsGenerating(false);
@@ -64,6 +109,7 @@ export function TextToVideoForm() {
   };
   
   const currentPrompt = form.watch('prompt');
+  const isButtonDisabled = isGenerating || isUserLoading;
 
   return (
     <Card className="max-w-2xl">
@@ -109,7 +155,7 @@ export function TextToVideoForm() {
           </CardContent>
           <CardFooter className="flex justify-between">
             <PromptSuggestions originalPrompt={currentPrompt} onSelectSuggestion={(suggestion) => form.setValue('prompt', suggestion)} />
-            <Button type="submit" disabled={isGenerating} size="lg">
+            <Button type="submit" disabled={isButtonDisabled} size="lg">
               {isGenerating ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -9,7 +9,8 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import * as fs from 'fs';
+import {googleAI} from '@genkit-ai/google-genai';
+import {MediaPart} from 'genkit';
 
 const GenerateVideoFromStillImageInputSchema = z.object({
   photoDataUri: z
@@ -44,7 +45,7 @@ const generateVideoFromStillImageFlow = ai.defineFlow(
   },
   async input => {
     let {operation} = await ai.generate({
-      model: 'googleai/veo-3.0-generate-preview',
+      model: googleAI.model('veo-3.0-generate-preview'),
       prompt: [
         {
           text: input.prompt,
@@ -76,6 +77,28 @@ const generateVideoFromStillImageFlow = ai.defineFlow(
     if (!video) {
       throw new Error('Failed to find the generated video');
     }
-    return {videoDataUri: video.media!.url};
+    
+    const videoDataUri = await downloadVideoAndConvertToDataUri(video);
+    
+    return {videoDataUri};
   }
 );
+
+async function downloadVideoAndConvertToDataUri(video: MediaPart): Promise<string> {
+  const fetch = (await import('node-fetch')).default;
+  // Add API key before fetching the video.
+  const videoDownloadResponse = await fetch(
+    `${video.media!.url}&key=${process.env.GEMINI_API_KEY}`
+  );
+  if (
+    !videoDownloadResponse ||
+    videoDownloadResponse.status !== 200 ||
+    !videoDownloadResponse.body
+  ) {
+    throw new Error('Failed to fetch video');
+  }
+
+  const buffer = await videoDownloadResponse.arrayBuffer();
+  const base64 = Buffer.from(buffer).toString('base64');
+  return `data:video/mp4;base64,${base64}`;
+}

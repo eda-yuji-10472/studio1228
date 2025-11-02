@@ -100,7 +100,7 @@ const generateVideoFromStillImageFlow = ai.defineFlow(
 
     return {
       videoDataUri: proxied.dataUri,
-      usage: operation.output?.usage,
+      usage: operation.output?.message?.usage,
     };
   }
 );

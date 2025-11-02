@@ -1,0 +1,94 @@
+'use client';
+
+import { PageHeader } from '@/components/shared/page-header';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useAppContext } from '@/contexts/app-context';
+import { Skeleton } from '@/components/ui/skeleton';
+import { MediaCard } from '@/components/shared/media-card';
+import { Bot, FileText, Image, Video } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { PromptSuggestions } from '@/components/shared/prompt-suggestions';
+
+export default function LibraryPage() {
+  const { mediaItems, promptHistory, isHydrated } = useAppContext();
+  
+  const handleSuggestionSelect = (suggestion: string) => {
+    // In a real app, this might copy the prompt or navigate to the create page
+    navigator.clipboard.writeText(suggestion);
+    // You could also add a toast notification here
+  };
+
+  return (
+    <div className="flex flex-1 flex-col">
+      <PageHeader
+        title="Library"
+        description="Browse your generated media and prompt history."
+      />
+      <main className="flex-1 p-6 pt-0">
+        <Tabs defaultValue="media" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 md:w-[400px]">
+            <TabsTrigger value="media">
+              <Video className="mr-2" />
+              Media
+            </TabsTrigger>
+            <TabsTrigger value="prompts">
+              <FileText className="mr-2" />
+              Prompts
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="media" className="mt-6">
+            {!isHydrated ? (
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="aspect-video w-full" />
+                    <Skeleton className="h-4 w-3/4" />
+                  </div>
+                ))}
+              </div>
+            ) : mediaItems.length > 0 ? (
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {mediaItems.map(item => <MediaCard key={item.id} item={item} />)}
+              </div>
+            ) : (
+              <div className="flex h-64 flex-col items-center justify-center rounded-lg border-2 border-dashed">
+                <Image className="mb-4 h-12 w-12 text-muted-foreground" />
+                <h3 className="text-lg font-semibold">Your media library is empty</h3>
+                <p className="text-sm text-muted-foreground">Start by creating a new video or image.</p>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="prompts" className="mt-6">
+            {!isHydrated ? (
+              <div className="space-y-4">
+                {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+              </div>
+            ) : promptHistory.length > 0 ? (
+                <div className="space-y-2">
+                    {promptHistory.map(prompt => (
+                        <div key={prompt.id} className="flex items-center justify-between rounded-lg border p-4">
+                            <div>
+                                <p className="font-mono text-sm">{prompt.text}</p>
+                                <p className="text-xs text-muted-foreground">
+                                    {formatDistanceToNow(new Date(prompt.createdAt), { addSuffix: true })}
+                                </p>
+                            </div>
+                            <PromptSuggestions originalPrompt={prompt.text} onSelectSuggestion={handleSuggestionSelect} />
+                        </div>
+                    ))}
+                </div>
+            ) : (
+              <div className="flex h-64 flex-col items-center justify-center rounded-lg border-2 border-dashed">
+                <Bot className="mb-4 h-12 w-12 text-muted-foreground" />
+                <h3 className="text-lg font-semibold">No prompt history</h3>
+                <p className="text-sm text-muted-foreground">Your used prompts will appear here.</p>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      </main>
+    </div>
+  );
+}

@@ -19,6 +19,8 @@ const GenerateVideoFromStillImageInputSchema = z.object({
       "A photo to animate, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
     ),
   prompt: z.string().describe('The prompt to use to animate the image.'),
+  aspectRatio: z.string().optional().default('16:9').describe("The aspect ratio of the generated video, e.g., '16:9'."),
+  personGeneration: z.string().optional().describe("The safety setting for generating people, e.g., 'allow_adult'.")
 });
 export type GenerateVideoFromStillImageInput = z.infer<
   typeof GenerateVideoFromStillImageInputSchema
@@ -68,8 +70,8 @@ const generateVideoFromStillImageFlow = ai.defineFlow(
         },
       ],
       config: {
-        aspectRatio: '16:9',
-        personGeneration: 'allow_adult',
+        aspectRatio: input.aspectRatio,
+        personGeneration: input.personGeneration,
       },
     });
 

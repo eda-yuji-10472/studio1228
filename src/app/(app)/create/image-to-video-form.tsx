@@ -17,15 +17,19 @@ import Image from 'next/image';
 import { PromptSuggestions } from '@/components/shared/prompt-suggestions';
 import { useUser } from '@/firebase/auth/use-user';
 import { firestore, storage } from '@/firebase';
-import { ref, uploadBytes, getDownloadURL, uploadString } from 'firebase/storage';
+import { ref, uploadString, getDownloadURL, uploadBytes } from 'firebase/storage';
 import { collection, doc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { logError } from '@/lib/logger';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 
 const formSchema = z.object({
   image: z.any().refine(file => file instanceof File, 'Please upload an image.'),
   prompt: z.string().min(10, 'Prompt must be at least 10 characters long.'),
+  aspectRatio: z.string().default('16:9'),
+  personGeneration: z.string().default('allow_adult'),
 });
 
 export function ImageToVideoForm() {
@@ -41,6 +45,8 @@ export function ImageToVideoForm() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       prompt: '',
+      aspectRatio: '16:9',
+      personGeneration: 'allow_adult',
     },
   });
 
@@ -84,8 +90,8 @@ export function ImageToVideoForm() {
         thumbnailUrl: '',
         type: 'video' as const,
         status: 'processing' as const,
-        aspectRatio: '16:9',
-        personGeneration: 'allow_adult',
+        aspectRatio: values.aspectRatio,
+        personGeneration: values.personGeneration,
         createdAt: serverTimestamp(),
         inputTokens: 0,
         outputTokens: 0,
@@ -114,7 +120,12 @@ export function ImageToVideoForm() {
       
       // Generate video using the uploaded image data URI
       addPromptItem({ text: values.prompt });
-      const result = await generateVideoFromStillImage({ photoDataUri: imagePreview, prompt: values.prompt });
+      const result = await generateVideoFromStillImage({ 
+        photoDataUri: imagePreview, 
+        prompt: values.prompt,
+        aspectRatio: values.aspectRatio,
+        personGeneration: values.personGeneration,
+       });
       
       if (result.videoDataUri) {
         setGeneratedVideo(result.videoDataUri);
@@ -173,7 +184,7 @@ export function ImageToVideoForm() {
             <CardTitle>Image-to-Video Generation</CardTitle>
             <CardDescription>Upload an image and describe how you want to animate it.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
             <FormField
               control={form.control}
               name="image"
@@ -210,6 +221,70 @@ export function ImageToVideoForm() {
                 </FormItem>
               )}
             />
+
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="aspectRatio"
+                render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <FormLabel>Aspect Ratio</FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        className="flex space-x-4"
+                      >
+                        <FormItem className="flex items-center space-x-2 space-y-0">
+                          <FormControl>
+                            <RadioGroupItem value="16:9" id="ar-16-9" />
+                          </FormControl>
+                          <Label htmlFor="ar-16-9" className="font-normal">16:9 (Widescreen)</Label>
+                        </FormItem>
+                        <FormItem className="flex items-center space-x-2 space-y-0">
+                          <FormControl>
+                            <RadioGroupItem value="9:16" id="ar-9-16" />
+                          </FormControl>
+                          <Label htmlFor="ar-9-16" className="font-normal">9:16 (Vertical)</Label>
+                        </FormItem>
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="personGeneration"
+                render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <FormLabel>Person Generation</FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        className="flex space-x-4"
+                      >
+                        <FormItem className="flex items-center space-x-2 space-y-0">
+                          <FormControl>
+                            <RadioGroupItem value="allow_adult" id="pg-allow" />
+                          </FormControl>
+                          <Label htmlFor="pg-allow" className="font-normal">Allow</Label>
+                        </FormItem>
+                        <FormItem className="flex items-center space-x-2 space-y-0">
+                          <FormControl>
+                            <RadioGroupItem value="dont_allow" id="pg-disallow" />
+                          </FormControl>
+                          <Label htmlFor="pg-disallow" className="font-normal">Do Not Allow</Label>
+                        </FormItem>
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             {generatedVideo && (
               <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted">
                 <video src={generatedVideo} controls autoPlay muted loop className="h-full w-full object-cover" />

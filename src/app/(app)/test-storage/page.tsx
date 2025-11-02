@@ -18,6 +18,7 @@ export default function StorageTestPage() {
   const [isWriteLoading, setIsWriteLoading] = useState(false);
   const [isPngLoading, setIsPngLoading] = useState(false);
   const [retrievedImageUrl, setRetrievedImageUrl] = useState<string | null>(null);
+  const [imagePathForDebug, setImagePathForDebug] = useState<string | null>(null);
   const { user, isLoading: isUserLoading } = useUser();
   const { toast } = useToast();
 
@@ -57,28 +58,37 @@ export default function StorageTestPage() {
 
     setIsPngLoading(true);
     setRetrievedImageUrl(null);
+    setImagePathForDebug(null);
+    
     const imagePath = `test/test.png`;
     const storageRef = ref(storage, imagePath);
 
     try {
       // 1. Upload the test PNG
-      await uploadString(storageRef, TEST_PNG_DATA_URL, 'data_url');
-
-      // If we reach here, the upload was successful.
-      // We will not attempt to get the download URL to keep it simple.
+      const uploadResult = await uploadString(storageRef, TEST_PNG_DATA_URL, 'data_url');
       toast({ 
         title: 'Upload Successful', 
-        description: `Test PNG uploaded to ${storageRef.fullPath}. Read access will be tested separately if needed.` 
+        description: `Test PNG uploaded to ${storageRef.fullPath}. Now attempting to get URL...` 
       });
-      console.log(`Test PNG uploaded to ${storageRef.fullPath}`);
+      console.log(`Test PNG uploaded to ${uploadResult.ref.fullPath}`);
+
+      // 2. Attempt to get the download URL
+      const url = await getDownloadURL(storageRef);
+      setRetrievedImageUrl(url);
+      toast({
+        title: 'URL Retrieval Successful',
+        description: 'Image should be visible below.',
+      });
 
     } catch (error: any) {
       console.error('Storage PNG Test Error:', error);
       toast({
         variant: 'destructive',
         title: 'PNG Test Failed',
-        description: error.message || 'Could not upload the test PNG.',
+        description: error.message || 'Could not upload or retrieve the test PNG.',
       });
+      // Set the path for debugging purposes even if getDownloadURL fails
+      setImagePathForDebug(storageRef.toString()); // This will be gs://...
     } finally {
       setIsPngLoading(false);
     }
@@ -120,11 +130,11 @@ export default function StorageTestPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Storage Write Test (.png)</CardTitle>
+              <CardTitle>Storage R/W Test (.png)</CardTitle>
               <CardDescription>
                 Attempts to upload a small PNG to{' '}
-                <code className="bg-muted px-1 py-0.5 rounded-sm text-sm">/test/test.png</code>.
-                This verifies write permission to a public path.
+                <code className="bg-muted px-1 py-0.5 rounded-sm text-sm">/test/test.png</code>{' '}
+                and then retrieve its public URL to display it.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -132,15 +142,30 @@ export default function StorageTestPage() {
                 {isPngLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Testing Upload...
+                    Testing R/W...
                   </>
                 ) : (
                   <>
                     <ImageIcon className="mr-2" />
-                    Run Upload Test (.png)
+                    Run R/W Test (.png)
                   </>
                 )}
               </Button>
+              {retrievedImageUrl && (
+                 <div>
+                    <p className="text-sm font-medium">Image retrieved successfully:</p>
+                    <div className="mt-2 w-24 h-24 border rounded-md p-2">
+                      <Image src={retrievedImageUrl} alt="Test PNG" width={96} height={96} />
+                    </div>
+                    <p className="text-xs text-muted-foreground break-all mt-1">URL: {retrievedImageUrl}</p>
+                 </div>
+              )}
+              {imagePathForDebug && (
+                <div>
+                  <p className="text-sm font-medium text-destructive">Failed to get URL, but file should exist at this path:</p>
+                  <code className="text-xs text-muted-foreground break-all mt-1">{imagePathForDebug}</code>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

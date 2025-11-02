@@ -46,22 +46,24 @@ async function saveMediaToStorageAndFirestore(
   const videosCollection = collection(firestore, 'users', userId, 'videos');
   const newVideoDoc = doc(videosCollection);
   
-  setDoc(newVideoDoc, {
+  const videoData = {
     id: newVideoDoc.id,
     userId: userId,
     title: prompt,
     prompt: prompt,
     storageUrl: downloadURL,
     thumbnailUrl: sourceImageUrl, // Use the source image as the thumbnail
-    type: 'video',
+    type: 'video' as const,
     createdAt: serverTimestamp(),
-  }).catch(error => {
+  };
+
+  setDoc(newVideoDoc, videoData).catch(error => {
     errorEmitter.emit(
       'permission-error',
       new FirestorePermissionError({
         path: newVideoDoc.path,
         operation: 'create',
-        requestResourceData: { prompt, type: 'video' },
+        requestResourceData: videoData,
       })
     );
     throw error;
@@ -125,20 +127,21 @@ export function ImageToVideoForm() {
       // Save image metadata to Firestore
       const imagesCollection = collection(firestore, 'users', user.uid, 'images');
       const newImageDoc = doc(imagesCollection);
-      setDoc(newImageDoc, {
+      const imageData = {
         id: newImageDoc.id,
         userId: user.uid,
         title: sourceImageFile.name,
         storageUrl: sourceImageUrl,
-        type: 'image',
+        type: 'image' as const,
         createdAt: serverTimestamp(),
-      }).catch(error => {
+      };
+      setDoc(newImageDoc, imageData).catch(error => {
         errorEmitter.emit(
           'permission-error',
           new FirestorePermissionError({
             path: newImageDoc.path,
             operation: 'create',
-            requestResourceData: { title: sourceImageFile.name, type: 'image' },
+            requestResourceData: imageData,
           })
         );
         throw error;
@@ -265,3 +268,5 @@ export function ImageToVideoForm() {
     </Card>
   );
 }
+
+    

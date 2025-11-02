@@ -42,21 +42,23 @@ async function saveVideoToStorageAndFirestore(
   const videosCollection = collection(firestore, 'users', userId, 'videos');
   const newVideoDoc = doc(videosCollection);
   
-  setDoc(newVideoDoc, {
+  const videoData = {
     id: newVideoDoc.id,
     userId: userId,
     title: prompt,
     prompt: prompt,
     storageUrl: downloadURL,
-    type: 'video',
+    type: 'video' as const,
     createdAt: serverTimestamp(),
-  }).catch(error => {
+  };
+
+  setDoc(newVideoDoc, videoData).catch(error => {
     errorEmitter.emit(
       'permission-error',
       new FirestorePermissionError({
         path: newVideoDoc.path,
         operation: 'create',
-        requestResourceData: { prompt, type: 'video' },
+        requestResourceData: videoData,
       })
     );
     // Re-throw the original error to be caught by the calling function's catch block
@@ -188,3 +190,5 @@ export function TextToVideoForm() {
     </Card>
   );
 }
+
+    

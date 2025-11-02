@@ -10,6 +10,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import {googleAI} from '@genkit-ai/google-genai';
+import { proxyFetch } from './proxy-fetch';
 
 const GenerateVideoFromStillImageInputSchema = z.object({
   photoDataUri: z
@@ -83,6 +84,9 @@ const generateVideoFromStillImageFlow = ai.defineFlow(
       throw new Error('Failed to find the generated video data URI');
     }
     
-    return {videoDataUri: video.media.url};
+    // Fetch the raw URL through the proxy to get a data URI
+    const proxied = await proxyFetch({ url: video.media.url });
+
+    return {videoDataUri: proxied.dataUri};
   }
 );

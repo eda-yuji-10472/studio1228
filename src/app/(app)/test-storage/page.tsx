@@ -160,7 +160,7 @@ export default function StorageTestPage() {
                     <p className="text-xs text-muted-foreground break-all mt-1">URL: {retrievedImageUrl}</p>
                  </div>
               )}
-              {imagePathForDebug && (
+              {imagePathForDebug && !retrievedImageUrl && (
                 <div>
                   <p className="text-sm font-medium text-destructive">Failed to get URL, but file should exist at this path:</p>
                   <code className="text-xs text-muted-foreground break-all mt-1">{imagePathForDebug}</code>

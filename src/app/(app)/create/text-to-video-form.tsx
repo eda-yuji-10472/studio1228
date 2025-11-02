@@ -168,11 +168,11 @@ export function TextToVideoForm() {
             />
             {generatedVideo && (
               <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted">
-                <video src={generatedVideo} controls autoPlay muted loop className="h-full w-full object-cover" />
+                <video src={generatedVideo} controls autoPlay muted loop className="h-full w-full object-contain" />
               </div>
             )}
-            {isGenerating && (
-              <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-muted p-8">
+            {isGenerating && !generatedVideo && (
+              <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-muted p-8 aspect-video">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <p className="text-sm text-muted-foreground">
                   Generating video... This may take up to a minute.

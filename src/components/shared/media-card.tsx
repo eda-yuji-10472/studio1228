@@ -40,9 +40,9 @@ export function MediaCard({ item }: MediaCardProps) {
   }
 
   const cardMedia = item.type === 'video' ? (
-    <video src={item.storageUrl} poster={item.thumbnailUrl} controls muted loop className="h-full w-full bg-muted object-cover" />
+    <video src={item.storageUrl} poster={item.thumbnailUrl} controls muted loop className="h-full w-full bg-muted object-contain" />
   ) : (
-    <NextImage src={item.storageUrl} alt={item.prompt || 'Generated image'} fill className="object-cover bg-muted" />
+    <NextImage src={item.storageUrl} alt={item.prompt || 'Generated image'} fill className="object-contain bg-muted" />
   );
 
   return (

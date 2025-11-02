@@ -28,7 +28,6 @@ import { Label } from '@/components/ui/label';
 const formSchema = z.object({
   image: z.any().refine(file => file instanceof File, 'Please upload an image.'),
   prompt: z.string().min(10, 'Prompt must be at least 10 characters long.'),
-  aspectRatio: z.string().default('16:9'),
   personGeneration: z.string().default('allow_adult'),
 });
 
@@ -45,7 +44,6 @@ export function ImageToVideoForm() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       prompt: '',
-      aspectRatio: '16:9',
       personGeneration: 'allow_adult',
     },
   });
@@ -90,7 +88,6 @@ export function ImageToVideoForm() {
         thumbnailUrl: '',
         type: 'video' as const,
         status: 'processing' as const,
-        aspectRatio: values.aspectRatio,
         personGeneration: values.personGeneration,
         createdAt: serverTimestamp(),
         inputTokens: 0,
@@ -124,7 +121,6 @@ export function ImageToVideoForm() {
       const result = await generateVideoFromStillImage({ 
         photoDataUri: imagePreview, 
         prompt: values.prompt,
-        aspectRatio: values.aspectRatio,
         personGeneration: values.personGeneration,
        });
       
@@ -184,7 +180,7 @@ export function ImageToVideoForm() {
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardHeader>
             <CardTitle>Image-to-Video Generation</CardTitle>
-            <CardDescription>Upload an image and describe how you want to animate it.</CardDescription>
+            <CardDescription>Upload an image and describe how you want to animate it. The video will match the aspect ratio of your uploaded image.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <FormField
@@ -196,7 +192,7 @@ export function ImageToVideoForm() {
                   <FormControl>
                     <div className="relative flex w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-input bg-muted/50 transition-colors hover:border-primary">
                       {imagePreview ? (
-                        <Image src={imagePreview} alt="Image preview" width={500} height={300} className="aspect-video w-full rounded-md object-cover" />
+                        <Image src={imagePreview} alt="Image preview" width={500} height={300} className="aspect-video w-full rounded-md object-contain" />
                       ) : (
                         <div className="flex flex-col items-center justify-center p-12">
                           <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
@@ -224,76 +220,44 @@ export function ImageToVideoForm() {
               )}
             />
 
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="aspectRatio"
-                render={({ field }) => (
-                  <FormItem className="space-y-3">
-                    <FormLabel>Aspect Ratio</FormLabel>
-                    <FormControl>
-                      <RadioGroup
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                        className="flex space-x-4"
-                      >
-                        <FormItem className="flex items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="16:9" id="ar-16-9" />
-                          </FormControl>
-                          <Label htmlFor="ar-16-9" className="font-normal">16:9 (Widescreen)</Label>
-                        </FormItem>
-                        <FormItem className="flex items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="9:16" id="ar-9-16" />
-                          </FormControl>
-                          <Label htmlFor="ar-9-16" className="font-normal">9:16 (Vertical)</Label>
-                        </FormItem>
-                      </RadioGroup>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="personGeneration"
-                render={({ field }) => (
-                  <FormItem className="space-y-3">
-                    <FormLabel>Person Generation</FormLabel>
-                    <FormControl>
-                      <RadioGroup
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                        className="flex space-x-4"
-                      >
-                        <FormItem className="flex items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="allow_adult" id="pg-allow" />
-                          </FormControl>
-                          <Label htmlFor="pg-allow" className="font-normal">Allow</Label>
-                        </FormItem>
-                        <FormItem className="flex items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="dont_allow" id="pg-disallow" />
-                          </FormControl>
-                          <Label htmlFor="pg-disallow" className="font-normal">Do Not Allow</Label>
-                        </FormItem>
-                      </RadioGroup>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+            <FormField
+              control={form.control}
+              name="personGeneration"
+              render={({ field }) => (
+                <FormItem className="space-y-3">
+                  <FormLabel>Person Generation</FormLabel>
+                  <FormControl>
+                    <RadioGroup
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                      className="flex space-x-4"
+                    >
+                      <FormItem className="flex items-center space-x-2 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="allow_adult" id="pg-allow" />
+                        </FormControl>
+                        <Label htmlFor="pg-allow" className="font-normal">Allow</Label>
+                      </FormItem>
+                      <FormItem className="flex items-center space-x-2 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="dont_allow" id="pg-disallow" />
+                        </FormControl>
+                        <Label htmlFor="pg-disallow" className="font-normal">Do Not Allow</Label>
+                      </FormItem>
+                    </RadioGroup>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             {generatedVideo && (
-              <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted">
-                <video src={generatedVideo} controls autoPlay muted loop className="h-full w-full object-cover" />
+              <div className="w-full overflow-hidden rounded-lg border bg-muted">
+                <video src={generatedVideo} controls autoPlay muted loop className="h-full max-h-[60vh] w-full object-contain" />
               </div>
             )}
-            {isGenerating && (
-              <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-muted p-8">
+            {isGenerating && !generatedVideo && (
+              <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-muted p-8 aspect-video">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <p className="text-sm text-muted-foreground">Animating image... This may take up to a minute.</p>
               </div>

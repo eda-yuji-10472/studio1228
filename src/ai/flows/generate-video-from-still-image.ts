@@ -10,7 +10,6 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import {googleAI} from '@genkit-ai/google-genai';
-import {MediaPart} from 'genkit';
 
 const GenerateVideoFromStillImageInputSchema = z.object({
   photoDataUri: z
@@ -80,29 +79,10 @@ const generateVideoFromStillImageFlow = ai.defineFlow(
     }
 
     const video = operation.output?.message?.content.find(p => !!p.media);
-    if (!video) {
-      throw new Error('Failed to find the generated video');
+    if (!video || !video.media?.url) {
+      throw new Error('Failed to find the generated video data URI');
     }
     
-    const videoDataUri = await downloadVideoAndConvertToDataUri(video);
-    
-    return {videoDataUri};
+    return {videoDataUri: video.media.url};
   }
 );
-
-async function downloadVideoAndConvertToDataUri(video: MediaPart): Promise<string> {
-  if (!video.media?.url) {
-    throw new Error('Video media URL is missing.');
-  }
-
-  const response = await fetch(video.media.url);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch video: ${response.status} ${response.statusText}`);
-  }
-
-  const buffer = await response.arrayBuffer();
-  const base64 = Buffer.from(buffer).toString('base64');
-  const contentType = video.media.contentType || 'video/mp4';
-
-  return `data:${contentType};base64,${base64}`;
-}

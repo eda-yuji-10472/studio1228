@@ -3,6 +3,8 @@
 import type { MediaItem, PromptItem } from '@/lib/types';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
+const MAX_ITEMS = 10;
+
 interface AppContextType {
   mediaItems: MediaItem[];
   promptHistory: PromptItem[];
@@ -30,24 +32,33 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     } catch (error) {
       console.error("Failed to parse from localStorage", error);
+      // If parsing fails, clear the storage to prevent future errors
+      localStorage.removeItem('mediaItems');
+      localStorage.removeItem('promptHistory');
     }
     setIsHydrated(true);
   }, []);
 
   useEffect(() => {
     if (isHydrated) {
-      localStorage.setItem('mediaItems', JSON.stringify(mediaItems));
+      try {
+        const itemsToStore = mediaItems.slice(0, MAX_ITEMS);
+        localStorage.setItem('mediaItems', JSON.stringify(itemsToStore));
+      } catch (error) {
+        console.error("Failed to save mediaItems to localStorage", error);
+      }
     }
   }, [mediaItems, isHydrated]);
 
   useEffect(() => {
     if (isHydrated) {
-      localStorage.setItem('promptHistory', JSON.stringify(promptHistory));
+        const itemsToStore = promptHistory.slice(0, MAX_ITEMS);
+        localStorage.setItem('promptHistory', JSON.stringify(itemsToStore));
     }
   }, [promptHistory, isHydrated]);
 
   const addMediaItem = useCallback((item: Omit<MediaItem, 'id' | 'createdAt'>) => {
-    setMediaItems(prev => [{ ...item, id: new Date().toISOString(), createdAt: new Date().toISOString() }, ...prev]);
+    setMediaItems(prev => [{ ...item, id: new Date().toISOString(), createdAt: new Date().toISOString() }, ...prev].slice(0, MAX_ITEMS));
   }, []);
 
   const addPromptItem = useCallback((item: Omit<PromptItem, 'id' | 'createdAt'>) => {
@@ -56,7 +67,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (prev.some(p => p.text === item.text)) {
             return prev;
         }
-        return [{ ...item, id: new Date().toISOString(), createdAt: new Date().toISOString() }, ...prev]
+        return [{ ...item, id: new Date().toISOString(), createdAt: new Date().toISOString() }, ...prev].slice(0, MAX_ITEMS);
     });
   }, []);
 

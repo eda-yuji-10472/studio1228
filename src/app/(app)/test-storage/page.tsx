@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/shared/page-header';
-import { useStorage, useUser } from '@/firebase';
+import { useStorage, useUser } from '@/firebase/auth/use-user';
 import { ref, uploadString } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
 import { Beaker, Loader2 } from 'lucide-react';

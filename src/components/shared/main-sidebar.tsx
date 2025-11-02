@@ -13,7 +13,7 @@ import {
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Library, PlusCircle, Scissors, Bot, User as UserIcon, LogOut, Beaker } from 'lucide-react';
-import { useAuth, useUser } from '@/firebase';
+import { useAuth, useUser } from '@/firebase/auth/use-user';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Button } from '../ui/button';
 import { Avatar, AvatarFallback } from '../ui/avatar';

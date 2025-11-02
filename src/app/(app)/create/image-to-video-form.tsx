@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Sparkles, Upload } from 'lucide-react';
 import Image from 'next/image';
 import { PromptSuggestions } from '@/components/shared/prompt-suggestions';
-import { useFirestore, useStorage, useUser } from '@/firebase';
+import { useFirestore, useStorage, useUser } from '@/firebase/auth/use-user';
 import { ref, uploadBytes, getDownloadURL, uploadString } from 'firebase/storage';
 import { collection, addDoc, serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';

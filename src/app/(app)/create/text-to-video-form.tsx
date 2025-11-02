@@ -13,7 +13,7 @@ import { useAppContext } from '@/contexts/app-context';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Sparkles } from 'lucide-react';
 import { PromptSuggestions } from '@/components/shared/prompt-suggestions';
-import { useFirestore, useStorage, useUser } from '@/firebase';
+import { useFirestore, useStorage, useUser } from '@/firebase/auth/use-user';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, serverTimestamp, setDoc, doc } from 'firebase/firestore';
 import { FirestorePermissionError } from '@/firebase/errors';

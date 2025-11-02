@@ -3,7 +3,7 @@
 import { AppContextProvider } from '@/contexts/app-context';
 import { MainSidebar } from '@/components/shared/main-sidebar';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
-import { useUser } from '@/firebase';
+import { useUser } from '@/firebase/auth/use-user';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';

@@ -6,28 +6,28 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { PageHeader } from '@/components/shared/page-header';
 import { useUser } from '@/firebase/auth/use-user';
 import { storage } from '@/firebase';
-import { ref, uploadString, getBytes } from 'firebase/storage';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
-import { Beaker, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Beaker, Loader2, Image as ImageIcon, Link as LinkIcon, AlertCircle } from 'lucide-react';
 import Image from 'next/image';
 
 // A simple 1x1 transparent PNG as a base64 data URL
 const TEST_PNG_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
 export default function StorageTestPage() {
-  const [isPngLoading, setIsPngLoading] = useState(false);
-  const [retrievedImageUrl, setRetrievedImageUrl] = useState<string | null>(null);
+  const [isTesting, setIsTesting] = useState(false);
+  const [result, setResult] = useState<{ url?: string; path?: string; error?: string }>({});
   const { user, isLoading: isUserLoading } = useUser();
   const { toast } = useToast();
 
-  const handlePngTest = async () => {
+  const handleStorageTest = async () => {
     if (isUserLoading || !user) {
       toast({ variant: 'destructive', title: 'Not Authenticated', description: 'Please wait for authentication to complete.' });
       return;
     }
 
-    setIsPngLoading(true);
-    setRetrievedImageUrl(null);
+    setIsTesting(true);
+    setResult({});
     
     const imagePath = `test/test.png`;
     const storageRef = ref(storage, imagePath);
@@ -37,31 +37,28 @@ export default function StorageTestPage() {
       await uploadString(storageRef, TEST_PNG_DATA_URL, 'data_url');
       toast({ 
         title: 'Upload Successful', 
-        description: `Test PNG uploaded to ${storageRef.fullPath}. Now attempting to get data via SDK...` 
+        description: `Test PNG uploaded to ${storageRef.fullPath}. Now attempting getDownloadURL...` 
       });
 
-      // 2. Attempt to get the file's content as bytes (ArrayBuffer) using the SDK
-      const bytes = await getBytes(storageRef);
+      // 2. Attempt to get the download URL
+      const downloadURL = await getDownloadURL(storageRef);
       
-      // 3. Convert bytes to a Blob and create a local URL for display
-      const blob = new Blob([bytes], { type: 'image/png' });
-      const localUrl = URL.createObjectURL(blob);
-      
-      setRetrievedImageUrl(localUrl);
+      setResult({ url: downloadURL, path: storageRef.fullPath });
       toast({
-        title: 'Data Retrieval Successful',
-        description: 'Image fetched via SDK should be visible below.',
+        title: 'getDownloadURL Successful',
+        description: 'Download URL has been retrieved.',
       });
 
     } catch (error: any) {
-      console.error('Storage PNG Test Error:', error);
+      console.error('Storage Test Error:', error);
+      setResult({ error: error.message || 'An unknown error occurred.', path: storageRef.fullPath });
       toast({
         variant: 'destructive',
-        title: 'PNG Test Failed',
+        title: 'Storage Test Failed',
         description: `Failed at path ${storageRef.fullPath}. Error: ${error.message}`,
       });
     } finally {
-      setIsPngLoading(false);
+      setIsTesting(false);
     }
   };
 
@@ -69,38 +66,54 @@ export default function StorageTestPage() {
     <div className="flex flex-1 flex-col">
       <PageHeader
         title="Firebase Storage Test"
-        description="Use this page to test writing and reading files to/from Firebase Storage."
+        description="Use this page to test writing files and getting a download URL from Firebase Storage."
       />
       <main className="flex-1 p-6 pt-0">
         <div className="grid gap-6">
           <Card>
             <CardHeader>
-              <CardTitle>SDK R/W Test (.png)</CardTitle>
+              <CardTitle>Storage getDownloadURL Test</CardTitle>
               <CardDescription>
-                Uploads a PNG to <code className="bg-muted px-1 py-0.5 rounded-sm text-sm">/test/test.png</code>, 
-                then retrieves its data using the SDK's `getBytes` method. This verifies if security rules are correct.
+                Uploads a test PNG to <code className="bg-muted px-1 py-0.5 rounded-sm text-sm">/test/test.png</code>, 
+                then attempts to retrieve its public URL using the SDK's `getDownloadURL` method.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button onClick={handlePngTest} disabled={isPngLoading || isUserLoading}>
-                {isPngLoading ? (
+              <Button onClick={handleStorageTest} disabled={isTesting || isUserLoading}>
+                {isTesting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Testing R/W...
+                    Testing...
                   </>
                 ) : (
                   <>
-                    <ImageIcon className="mr-2" />
-                    Run SDK R/W Test
+                    <Beaker className="mr-2" />
+                    Run getDownloadURL Test
                   </>
                 )}
               </Button>
-              {retrievedImageUrl && (
-                 <div>
-                    <p className="text-sm font-medium">Image retrieved via SDK:</p>
-                    <div className="mt-2 w-24 h-24 border rounded-md p-2">
-                      <Image src={retrievedImageUrl} alt="Test PNG" width={96} height={96} unoptimized/>
+              {result.path && (
+                 <div className="space-y-2 rounded-md border p-4">
+                    <h4 className="font-medium">Test Results</h4>
+                    <div className="flex items-center gap-2 text-sm">
+                        <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                        <p>Attempted Path:</p>
+                        <code className="bg-muted px-1 py-0.5 rounded-sm">{result.path}</code>
                     </div>
+                    {result.url && (
+                        <div className="flex items-start gap-2 text-sm">
+                            <LinkIcon className="h-4 w-4 text-muted-foreground mt-1" />
+                            <p>Download URL:</p>
+                            <a href={result.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline break-all">{result.url}</a>
+                        </div>
+                    )}
+                     {result.error && (
+                        <div className="flex items-start gap-2 text-sm text-destructive">
+                            <AlertCircle className="h-4 w-4 shrink-0 mt-1" />
+                            <p>Error:</p>
+                            <p className="font-mono">{result.error}</p>
+                        </div>
+                    )}
                  </div>
               )}
             </CardContent>

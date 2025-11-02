@@ -49,7 +49,6 @@ const generateVideoFromTextFlow = ai.defineFlow(
       model: googleAI.model('veo-3.0-generate-preview'),
       prompt: input.prompt,
       config: {
-        durationSeconds: 5,
         aspectRatio: '16:9',
       },
     });

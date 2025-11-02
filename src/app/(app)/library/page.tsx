@@ -6,28 +6,40 @@ import { useAppContext } from '@/contexts/app-context';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MediaCard } from '@/components/shared/media-card';
 import { Bot, FileText, Image as ImageIcon, Video } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, subDays } from 'date-fns';
 import { PromptSuggestions } from '@/components/shared/prompt-suggestions';
 import { useCollection, useMemoFirebase } from '@/firebase/firestore/use-collection';
 import { useUser } from '@/firebase/auth/use-user';
 import { firestore } from '@/firebase';
 import { useMemo } from 'react';
-import { collection, query, orderBy } from 'firebase/firestore';
+import { collection, query, orderBy, where, Timestamp } from 'firebase/firestore';
 import type { MediaItem } from '@/lib/types';
 
 
 function MediaGrid() {
   const { user, isLoading: isUserLoading } = useUser();
 
+  const thirtyDaysAgo = useMemo(() => {
+    return Timestamp.fromDate(subDays(new Date(), 30));
+  }, []);
+
   const videosQuery = useMemoFirebase(() => {
     if (!user) return null;
-    return query(collection(firestore, 'users', user.uid, 'videos'), orderBy('createdAt', 'desc'));
-  }, [user]);
+    return query(
+      collection(firestore, 'users', user.uid, 'videos'),
+      where('createdAt', '>=', thirtyDaysAgo),
+      orderBy('createdAt', 'desc')
+    );
+  }, [user, thirtyDaysAgo]);
 
   const imagesQuery = useMemoFirebase(() => {
     if (!user) return null;
-    return query(collection(firestore, 'users', user.uid, 'images'), orderBy('createdAt', 'desc'));
-  }, [user]);
+    return query(
+      collection(firestore, 'users', user.uid, 'images'),
+      where('createdAt', '>=', thirtyDaysAgo),
+      orderBy('createdAt', 'desc')
+    );
+  }, [user, thirtyDaysAgo]);
 
   const { data: videos, isLoading: isLoadingVideos } = useCollection<MediaItem>(videosQuery);
   const { data: images, isLoading: isLoadingImages } = useCollection<MediaItem>(imagesQuery);
@@ -62,8 +74,8 @@ function MediaGrid() {
     return (
       <div className="flex h-64 flex-col items-center justify-center rounded-lg border-2 border-dashed">
         <ImageIcon className="mb-4 h-12 w-12 text-muted-foreground" />
-        <h3 className="text-lg font-semibold">Your media library is empty</h3>
-        <p className="text-sm text-muted-foreground">Start by creating a new video or image.</p>
+        <h3 className="text-lg font-semibold">Your recent media library is empty</h3>
+        <p className="text-sm text-muted-foreground">Media older than 30 days is hidden. Start by creating something new!</p>
       </div>
     );
   }
@@ -87,7 +99,7 @@ export default function LibraryPage() {
     <div className="flex flex-1 flex-col">
       <PageHeader
         title="Library"
-        description="Browse your generated media and prompt history."
+        description="Browse your generated media and prompt history from the last 30 days."
       />
       <main className="flex-1 p-6 pt-0">
         <Tabs defaultValue="media" className="w-full">

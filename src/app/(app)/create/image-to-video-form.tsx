@@ -320,5 +320,3 @@ export function ImageToVideoForm() {
     </Card>
   );
 }
-
-    

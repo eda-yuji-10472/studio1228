@@ -201,5 +201,3 @@ export function TextToVideoForm() {
     </Card>
   );
 }
-
-    

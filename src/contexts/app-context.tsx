@@ -25,7 +25,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     try {
       const storedMedia = localStorage.getItem('mediaItems');
       if (storedMedia) {
-        // We only store images now
+        // We only load images now to be safe
         const images = JSON.parse(storedMedia).filter((item: MediaItem) => item.type === 'image');
         setMediaItems(images);
       }
@@ -34,7 +34,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setPromptHistory(JSON.parse(storedPrompts));
       }
     } catch (error) {
-      console.error("Failed to parse from localStorage", error);
+      console.error("Failed to parse from localStorage, clearing for safety.", error);
       // If parsing fails, clear the storage to prevent future errors
       localStorage.removeItem('mediaItems');
       localStorage.removeItem('promptHistory');
@@ -56,22 +56,26 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   useEffect(() => {
     if (isHydrated) {
-        const itemsToStore = promptHistory.slice(0, MAX_PROMPT_ITEMS);
-        localStorage.setItem('promptHistory', JSON.stringify(itemsToStore));
+        try {
+            const itemsToStore = promptHistory.slice(0, MAX_PROMPT_ITEMS);
+            localStorage.setItem('promptHistory', JSON.stringify(itemsToStore));
+        } catch (error) {
+            console.error("Failed to save promptHistory to localStorage", error);
+        }
     }
   }, [promptHistory, isHydrated]);
 
   const addMediaItem = useCallback((item: Omit<MediaItem, 'id' | 'createdAt'>) => {
     const newItem = { ...item, id: new Date().toISOString(), createdAt: new Date().toISOString() };
     
-    // Videos are added to state for immediate viewing but not persisted long-term
-    if (item.type === 'video') {
-       setMediaItems(prev => [newItem, ...prev.filter(i => i.type === 'image')].slice(0, MAX_IMAGE_ITEMS + 1));
+    // Non-image items (like videos) are added to state for immediate viewing but not persisted long-term
+    if (item.type !== 'image') {
+       setMediaItems(prev => [newItem, ...prev.filter(i => i.type === 'image')]);
        return;
     }
 
-    // Images are added and will be persisted
-    setMediaItems(prev => [newItem, ...prev].slice(0, MAX_IMAGE_ITEMS));
+    // Images are added and will be persisted, ensuring the list is capped
+    setMediaItems(prev => [newItem, ...prev.filter(i => i.type === 'image')].slice(0, MAX_IMAGE_ITEMS));
   }, []);
 
   const addPromptItem = useCallback((item: Omit<PromptItem, 'id' | 'createdAt'>) => {

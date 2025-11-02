@@ -4,10 +4,15 @@ export type MediaItem = {
   storageUrl: string; // Firebase Storage URL
   thumbnailUrl?: string; // Optional: for videos
   prompt?: string;
-  createdAt: string;
+  createdAt: any; // Can be a server timestamp
   duration?: number;
   title: string;
   userId: string;
+  status?: 'processing' | 'completed' | 'failed';
+  error?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
 };
 
 export type PromptItem = {

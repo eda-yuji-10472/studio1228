@@ -16,7 +16,7 @@ import { PromptSuggestions } from '@/components/shared/prompt-suggestions';
 import { useUser } from '@/firebase/auth/use-user';
 import { storage, firestore } from '@/firebase';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
-import { collection, addDoc, serverTimestamp, setDoc, doc } from 'firebase/firestore';
+import { collection, doc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { logError } from '@/lib/logger';
@@ -24,55 +24,6 @@ import { logError } from '@/lib/logger';
 const formSchema = z.object({
   prompt: z.string().min(10, 'Prompt must be at least 10 characters long.'),
 });
-
-async function saveVideoToStorageAndFirestore(
-  userId: string,
-  prompt: string,
-  videoDataUri: string,
-  usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number }
-) {
-  if (!videoDataUri.startsWith('data:video/mp4;base64,')) {
-    throw new Error('Invalid video data URI format.');
-  }
-
-  // 1. Upload video to Firebase Storage
-  const videoRef = ref(storage, `users/${userId}/videos/${new Date().getTime()}.mp4`);
-  const uploadResult = await uploadString(videoRef, videoDataUri, 'data_url');
-  const downloadURL = await getDownloadURL(uploadResult.ref);
-
-  // 2. Save metadata to Firestore
-  const videosCollection = collection(firestore, 'users', userId, 'videos');
-  const newVideoDoc = doc(videosCollection);
-  
-  const videoData = {
-    id: newVideoDoc.id,
-    userId: userId,
-    title: prompt,
-    prompt: prompt,
-    storageUrl: downloadURL,
-    type: 'video' as const,
-    createdAt: serverTimestamp(),
-    inputTokens: usage?.inputTokens || 0,
-    outputTokens: usage?.outputTokens || 0,
-    totalTokens: usage?.totalTokens || 0,
-  };
-
-  await setDoc(newVideoDoc, videoData).catch(error => {
-    errorEmitter.emit(
-      'permission-error',
-      new FirestorePermissionError({
-        path: newVideoDoc.path,
-        operation: 'create',
-        requestResourceData: videoData,
-      })
-    );
-    // Re-throw the original error to be caught by the calling function's catch block
-    throw error;
-  });
-
-
-  return { videoUrl: downloadURL, docId: newVideoDoc.id};
-}
 
 export function TextToVideoForm() {
   const [generatedVideo, setGeneratedVideo] = useState<string | null>(null);
@@ -101,14 +52,68 @@ export function TextToVideoForm() {
     setIsGenerating(true);
     setGeneratedVideo(null);
 
+    // 1. Create initial record in Firestore
+    const videosCollection = collection(firestore, 'users', user.uid, 'videos');
+    const newVideoDocRef = doc(videosCollection);
+    const initialVideoData = {
+      id: newVideoDocRef.id,
+      userId: user.uid,
+      title: values.prompt,
+      prompt: values.prompt,
+      storageUrl: '',
+      type: 'video' as const,
+      status: 'processing',
+      createdAt: serverTimestamp(),
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+    };
+
     try {
+      await setDoc(newVideoDocRef, initialVideoData).catch(error => {
+        errorEmitter.emit(
+          'permission-error',
+          new FirestorePermissionError({
+            path: newVideoDocRef.path,
+            operation: 'create',
+            requestResourceData: initialVideoData,
+          })
+        );
+        throw error; // Re-throw to be caught by the main catch block
+      });
+
+      // 2. Generate video
       addPromptItem({ text: values.prompt });
       const result = await generateVideoFromText({ prompt: values.prompt });
       
       if (result.videoDataUri) {
         setGeneratedVideo(result.videoDataUri);
         
-        await saveVideoToStorageAndFirestore(user.uid, values.prompt, result.videoDataUri, result.usage);
+        // 3. Upload video to Storage
+        const videoRef = ref(storage, `users/${user.uid}/videos/${newVideoDocRef.id}.mp4`);
+        const uploadResult = await uploadString(videoRef, result.videoDataUri, 'data_url');
+        const downloadURL = await getDownloadURL(uploadResult.ref);
+
+        // 4. Update Firestore record with results
+        const finalVideoData = {
+          storageUrl: downloadURL,
+          status: 'completed',
+          inputTokens: result.usage?.inputTokens || 0,
+          outputTokens: result.usage?.outputTokens || 0,
+          totalTokens: result.usage?.totalTokens || 0,
+        };
+
+        await updateDoc(newVideoDocRef, finalVideoData).catch(error => {
+          errorEmitter.emit(
+            'permission-error',
+            new FirestorePermissionError({
+              path: newVideoDocRef.path,
+              operation: 'update',
+              requestResourceData: finalVideoData,
+            })
+          );
+          throw error;
+        });
 
         toast({
           title: 'Success!',
@@ -119,6 +124,12 @@ export function TextToVideoForm() {
       }
     } catch (error: any) {
       console.error(error);
+      // 5. Update record with error status
+      const errorData = { status: 'failed', error: error.message || 'Unknown error' };
+      await updateDoc(newVideoDocRef, errorData).catch(updateError => {
+        console.error("Failed to update doc with error state:", updateError);
+      });
+      
       toast({
         variant: 'destructive',
         title: 'Generation Failed',

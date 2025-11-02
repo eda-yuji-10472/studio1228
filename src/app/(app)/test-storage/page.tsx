@@ -4,15 +4,15 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/shared/page-header';
-import { useStorage, useUser } from '@/firebase/auth/use-user';
+import { useUser } from '@/firebase/auth/use-user';
+import { storage } from '@/firebase';
 import { ref, uploadString } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
 import { Beaker, Loader2 } from 'lucide-react';
 
 export default function StorageTestPage() {
   const [isLoading, setIsLoading] = useState(false);
-  const { user, isUserLoading } = useUser();
-  const storage = useStorage();
+  const { user, isLoading: isUserLoading } = useUser();
   const { toast } = useToast();
 
   const handleTestUpload = async () => {

@@ -15,7 +15,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Sparkles, Upload } from 'lucide-react';
 import Image from 'next/image';
 import { PromptSuggestions } from '@/components/shared/prompt-suggestions';
-import { useFirestore, useStorage, useUser } from '@/firebase/auth/use-user';
+import { useUser } from '@/firebase/auth/use-user';
+import { firestore, storage } from '@/firebase';
 import { ref, uploadBytes, getDownloadURL, uploadString } from 'firebase/storage';
 import { collection, addDoc, serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -27,8 +28,6 @@ const formSchema = z.object({
 });
 
 async function saveMediaToStorageAndFirestore(
-  storage: any,
-  firestore: any,
   userId: string,
   prompt: string,
   videoDataUri: string,
@@ -47,7 +46,7 @@ async function saveMediaToStorageAndFirestore(
   const videosCollection = collection(firestore, 'users', userId, 'videos');
   const newVideoDoc = doc(videosCollection);
   
-  await setDoc(newVideoDoc, {
+  setDoc(newVideoDoc, {
     id: newVideoDoc.id,
     userId: userId,
     title: prompt,
@@ -79,9 +78,7 @@ export function ImageToVideoForm() {
   const [isUploading, setIsUploading] = useState(false);
   const { addPromptItem } = useAppContext();
   const { toast } = useToast();
-  const storage = useStorage();
-  const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
+  const { user, isLoading: isUserLoading } = useUser();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -128,7 +125,7 @@ export function ImageToVideoForm() {
       // Save image metadata to Firestore
       const imagesCollection = collection(firestore, 'users', user.uid, 'images');
       const newImageDoc = doc(imagesCollection);
-      await setDoc(newImageDoc, {
+      setDoc(newImageDoc, {
         id: newImageDoc.id,
         userId: user.uid,
         title: sourceImageFile.name,
@@ -158,7 +155,7 @@ export function ImageToVideoForm() {
         setGeneratedVideo(result.videoDataUri);
         
         // 3. Save generated video and its metadata
-        await saveMediaToStorageAndFirestore(storage, firestore, user.uid, values.prompt, result.videoDataUri, sourceImageUrl);
+        await saveMediaToStorageAndFirestore(user.uid, values.prompt, result.videoDataUri, sourceImageUrl);
 
         toast({
           title: 'Success!',

@@ -13,7 +13,8 @@ import { useAppContext } from '@/contexts/app-context';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Sparkles } from 'lucide-react';
 import { PromptSuggestions } from '@/components/shared/prompt-suggestions';
-import { useFirestore, useStorage, useUser } from '@/firebase/auth/use-user';
+import { useUser } from '@/firebase/auth/use-user';
+import { storage, firestore } from '@/firebase';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, serverTimestamp, setDoc, doc } from 'firebase/firestore';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -24,8 +25,6 @@ const formSchema = z.object({
 });
 
 async function saveVideoToStorageAndFirestore(
-  storage: any,
-  firestore: any,
   userId: string,
   prompt: string,
   videoDataUri: string
@@ -43,7 +42,7 @@ async function saveVideoToStorageAndFirestore(
   const videosCollection = collection(firestore, 'users', userId, 'videos');
   const newVideoDoc = doc(videosCollection);
   
-  await setDoc(newVideoDoc, {
+  setDoc(newVideoDoc, {
     id: newVideoDoc.id,
     userId: userId,
     title: prompt,
@@ -73,9 +72,7 @@ export function TextToVideoForm() {
   const [isGenerating, setIsGenerating] = useState(false);
   const { addPromptItem } = useAppContext();
   const { toast } = useToast();
-  const { user, isUserLoading } = useUser();
-  const storage = useStorage();
-  const firestore = useFirestore();
+  const { user, isLoading: isUserLoading } = useUser();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -104,7 +101,7 @@ export function TextToVideoForm() {
       if (result.videoDataUri) {
         setGeneratedVideo(result.videoDataUri);
         
-        await saveVideoToStorageAndFirestore(storage, firestore, user.uid, values.prompt, result.videoDataUri);
+        await saveVideoToStorageAndFirestore(user.uid, values.prompt, result.videoDataUri);
 
         toast({
           title: 'Success!',

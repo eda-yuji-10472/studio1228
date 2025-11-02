@@ -13,15 +13,15 @@ import {
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Library, PlusCircle, Scissors, Bot, User as UserIcon, LogOut, Beaker, Flame } from 'lucide-react';
-import { useAuth, useUser } from '@/firebase/auth/use-user';
+import { auth } from '@/firebase';
+import { useUser } from '@/firebase/auth/use-user';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Button } from '../ui/button';
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { Skeleton } from '../ui/skeleton';
 
 function UserMenu() {
-    const { user, isUserLoading } = useUser();
-    const auth = useAuth();
+    const { user, isLoading } = useUser();
     const router = useRouter();
 
     const handleSignOut = async () => {
@@ -29,7 +29,7 @@ function UserMenu() {
         router.push('/login');
     };
 
-    if (isUserLoading) {
+    if (isLoading) {
         return (
             <div className="flex items-center gap-2 p-2">
                 <Skeleton className="h-8 w-8 rounded-full" />

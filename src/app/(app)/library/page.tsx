@@ -9,25 +9,25 @@ import { Bot, FileText, Image as ImageIcon, Video } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { PromptSuggestions } from '@/components/shared/prompt-suggestions';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { useFirestore, useUser } from '@/firebase/auth/use-user';
+import { useUser } from '@/firebase/auth/use-user';
+import { firestore } from '@/firebase';
 import { useMemo } from 'react';
 import { collection, query, orderBy } from 'firebase/firestore';
 import type { MediaItem } from '@/lib/types';
 
 
 function MediaGrid() {
-  const { user, isUserLoading } = useUser();
-  const firestore = useFirestore();
+  const { user, isLoading: isUserLoading } = useUser();
 
   const videosQuery = useMemo(() => {
     if (!user) return null;
     return query(collection(firestore, 'users', user.uid, 'videos'), orderBy('createdAt', 'desc'));
-  }, [user, firestore]);
+  }, [user]);
 
   const imagesQuery = useMemo(() => {
     if (!user) return null;
     return query(collection(firestore, 'users', user.uid, 'images'), orderBy('createdAt', 'desc'));
-  }, [user, firestore]);
+  }, [user]);
 
   const { data: videos, isLoading: isLoadingVideos } = useCollection<MediaItem>(videosQuery as any);
   const { data: images, isLoading: isLoadingImages } = useCollection<MediaItem>(imagesQuery as any);

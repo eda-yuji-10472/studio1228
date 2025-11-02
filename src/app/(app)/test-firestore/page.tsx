@@ -5,7 +5,8 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/shared/page-header';
-import { useFirestore, useUser } from '@/firebase/auth/use-user';
+import { useUser } from '@/firebase/auth/use-user';
+import { firestore } from '@/firebase';
 import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Flame, Loader2 } from 'lucide-react';
@@ -15,8 +16,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function FirestoreTestPage() {
   const [isLoading, setIsLoading] = useState(false);
-  const { user, isUserLoading } = useUser();
-  const firestore = useFirestore();
+  const { user, isLoading: isUserLoading } = useUser();
   const { toast } = useToast();
 
   const handleTestWrite = async () => {
@@ -48,9 +48,12 @@ export default function FirestoreTestPage() {
     };
 
     try {
-      await setDoc(testDocRef, testContent).catch(error => {
-        // The global error handler doesn't catch promise rejections automatically,
-        // so we need to explicitly emit the permission error here.
+      await setDoc(testDocRef, testContent)
+      toast({
+        title: 'Write Successful',
+        description: `Test document was successfully written to: ${testDocRef.path}`,
+      });
+    } catch (error: any) {
         errorEmitter.emit(
           'permission-error',
           new FirestorePermissionError({
@@ -59,25 +62,8 @@ export default function FirestoreTestPage() {
             requestResourceData: testContent,
           })
         );
-        // Re-throw to ensure the try-catch block catches it.
-        throw error;
-      });
-
-      toast({
-        title: 'Write Successful',
-        description: `Test document was successfully written to: ${testDocRef.path}`,
-      });
-    } catch (error: any) {
-      console.error('Firestore Test Error:', error);
-      // The toast will be shown by the global error handler if it's a permission error.
-      // We only show a generic one here for other types of errors.
-      if (error.name !== 'FirebaseError') {
-        toast({
-          variant: 'destructive',
-          title: 'Write Failed',
-          description: error.message || 'An unknown error occurred.',
-        });
-      }
+        // We don't show a toast here because the global listener will handle it.
+        console.error('Firestore Test Error:', error);
     } finally {
       setIsLoading(false);
     }

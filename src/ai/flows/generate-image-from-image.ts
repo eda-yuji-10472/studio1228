@@ -72,17 +72,14 @@ const generateImageFromImageFlow = ai.defineFlow(
     });
 
     if (!media?.url) {
-      // If generation was blocked for safety, we still want to return that info.
-      if (finishReason === 'SAFETY') {
-        return {
-          imageDataUri: '',
-          usage,
-          cacheHit: custom?.cacheHit || false,
-          finishReason,
-          safetyRatings,
-        }
+      // If generation failed for any reason, return the reason to the client.
+      return {
+        imageDataUri: '',
+        usage,
+        cacheHit: custom?.cacheHit || false,
+        finishReason,
+        safetyRatings,
       }
-      throw new Error('Image generation failed to return an image.');
     }
     
     // The model returns a PNG, let's ensure the data URI reflects that

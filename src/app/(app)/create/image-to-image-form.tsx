@@ -92,10 +92,8 @@ export function ImageToImageForm() {
         type: 'image' as const,
         status: 'processing' as const,
         createdAt: serverTimestamp(),
-        inputTokens: 0,
-        outputTokens: 0,
-        totalTokens: 0,
-        cacheHit: false,
+        finishReason: '',
+        safetyRatings: [],
       };
       await setDoc(newImageDocRef, initialImageData);
     } catch (error: any) {
@@ -122,7 +120,7 @@ export function ImageToImageForm() {
         outputTokens: result.usage?.outputTokens ?? 0,
         totalTokens: result.usage?.totalTokens ?? 0,
         cacheHit: result.cacheHit || false,
-        finishReason: result.finishReason,
+        finishReason: result.finishReason || 'unknown',
         safetyRatings: result.safetyRatings || [],
       };
 
@@ -166,7 +164,12 @@ export function ImageToImageForm() {
           });
         }
       } else {
-        throw new Error('Image generation failed to return an image.');
+         if (result.finishReason) {
+          docUpdate.status = 'failed';
+          docUpdate.error = `Generation failed with reason: ${result.finishReason}`;
+          await updateDoc(newImageDocRef, docUpdate);
+        }
+        throw new Error(`Image generation failed to return an image. Reason: ${result.finishReason || 'unknown'}`);
       }
     } catch (error: any) {
       console.error(error);
@@ -198,7 +201,7 @@ export function ImageToImageForm() {
           <CardDescription>Your new image has been successfully generated.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-4">
-           <div className="relative w-full max-w-md" style={{ maxHeight: '50vh' }}>
+           <div className="relative w-full max-w-md" style={{ aspectRatio: '1 / 1' }}>
              <Image src={generatedImage} alt="Generated image" fill className="object-contain rounded-md" />
            </div>
            <Button onClick={handleReset} type="button" variant="outline" size="lg">

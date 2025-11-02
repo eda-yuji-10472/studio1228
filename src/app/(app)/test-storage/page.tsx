@@ -57,7 +57,7 @@ export default function StorageTestPage() {
 
     setIsPngLoading(true);
     setRetrievedImageUrl(null);
-    const imagePath = `users/${user.uid}/test/test.png`;
+    const imagePath = `test/test.png`;
     const storageRef = ref(storage, imagePath);
 
     try {
@@ -123,7 +123,7 @@ export default function StorageTestPage() {
               <CardTitle>Storage Read/Write Test (.png)</CardTitle>
               <CardDescription>
                 Attempts to upload a small PNG to{' '}
-                <code className="bg-muted px-1 py-0.5 rounded-sm text-sm">/users/&#123;uid&#125;/test/test.png</code>{' '}
+                <code className="bg-muted px-1 py-0.5 rounded-sm text-sm">/test/test.png</code>{' '}
                 and then retrieve it. This verifies both write and read permissions for image files.
               </CardDescription>
             </CardHeader>

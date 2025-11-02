@@ -98,9 +98,9 @@ export function TextToVideoForm() {
         const finalVideoData = {
           storageUrl: downloadURL,
           status: 'completed' as const,
-          inputTokens: result.usage?.inputTokens || 0,
-          outputTokens: result.usage?.outputTokens || 0,
-          totalTokens: result.usage?.totalTokens || 0,
+          inputTokens: result.usage?.inputTokens ?? 0,
+          outputTokens: result.usage?.outputTokens ?? 0,
+          totalTokens: result.usage?.totalTokens ?? 0,
         };
 
         await updateDoc(newVideoDocRef, finalVideoData);

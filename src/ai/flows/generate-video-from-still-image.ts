@@ -67,6 +67,11 @@ const generateVideoFromStillImageFlow = ai.defineFlow(
           },
         },
       ],
+      config: {
+        durationSeconds: 5,
+        aspectRatio: '16:9',
+        personGeneration: 'allow_adult',
+      },
     });
 
     if (!operation) {

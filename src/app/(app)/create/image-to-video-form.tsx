@@ -74,7 +74,6 @@ export function ImageToVideoForm() {
     const newVideoDocRef = doc(videosCollection);
 
     // Step 1: Create the initial document in Firestore to track the job.
-    // This is in its own try/catch block. If this fails, we stop immediately.
     try {
       const initialVideoData = {
         id: newVideoDocRef.id,
@@ -90,7 +89,6 @@ export function ImageToVideoForm() {
         outputTokens: 0,
         totalTokens: 0,
       };
-      // Do not attach a .catch here. Let the outer try/catch handle it.
       await setDoc(newVideoDocRef, initialVideoData);
     } catch (error: any) {
       console.error('Failed to create initial Firestore document:', error);
@@ -99,10 +97,9 @@ export function ImageToVideoForm() {
         title: 'Firestore Error',
         description: `Could not create tracking document. Check permissions. ${error.message}`,
       });
-      // Emit the detailed error for debugging.
       errorEmitter.emit('permission-error', new FirestorePermissionError({ path: newVideoDocRef.path, operation: 'create', requestResourceData: { title: values.prompt, status: 'processing'} }));
       setIsGenerating(false);
-      return; // CRITICAL: Stop execution if we can't even create the initial doc.
+      return;
     }
 
     // Step 2-5: Perform the generation, uploads, and final update.
@@ -130,9 +127,9 @@ export function ImageToVideoForm() {
           storageUrl: downloadURL,
           thumbnailUrl: sourceImageUrl,
           status: 'completed' as const,
-          inputTokens: result.usage?.inputTokens || 0,
-          outputTokens: result.usage?.outputTokens || 0,
-          totalTokens: result.usage?.totalTokens || 0,
+          inputTokens: result.usage?.inputTokens ?? 0,
+          outputTokens: result.usage?.outputTokens ?? 0,
+          totalTokens: result.usage?.totalTokens ?? 0,
         };
         await updateDoc(newVideoDocRef, finalVideoData);
 

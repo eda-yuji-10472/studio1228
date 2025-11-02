@@ -191,7 +191,7 @@ export function ImageToImageForm() {
           <CardDescription>Your new image has been successfully generated.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-4">
-           <div className="relative w-full max-w-md aspect-square">
+           <div className="relative w-full max-w-md" style={{ maxHeight: '50vh' }}>
              <Image src={generatedImage} alt="Generated image" fill className="object-contain rounded-md" />
            </div>
            <Button onClick={handleReset} type="button" variant="outline" size="lg">
@@ -290,5 +290,3 @@ export function ImageToImageForm() {
     </Card>
   );
 }
-
-    

@@ -8,8 +8,9 @@ import { useUser } from '@/firebase/auth/use-user';
 import { storage } from '@/firebase';
 import { ref, uploadString, getBytes } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
-import { Beaker, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Beaker, Loader2, Image as ImageIcon, Link as LinkIcon, AlertCircle } from 'lucide-react';
 import Image from 'next/image';
+import { Input } from '@/components/ui/input';
 
 // A simple 1x1 transparent PNG as a base64 data URL
 const TEST_PNG_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
@@ -21,33 +22,12 @@ export default function StorageTestPage() {
   const { user, isLoading: isUserLoading } = useUser();
   const { toast } = useToast();
 
-  const handleTestUpload = async () => {
-    if (isUserLoading) {
-      toast({ variant: 'destructive', title: 'Please wait', description: 'Authentication is still in progress.' });
-      return;
-    }
-    if (!user) {
-      toast({ variant: 'destructive', title: 'Authentication Error', description: 'You must be logged in to perform this action.' });
-      return;
-    }
+  // State for the new Direct URL Fetch test
+  const [isUrlLoading, setIsUrlLoading] = useState(false);
+  const [testUrl, setTestUrl] = useState('https://firebasestorage.googleapis.com/v0/b/striped-proxy-187410.firebasestorage.app/o/test%2Ftest.png?alt=media&token=70e64276-754d-48eb-baf5-2718ccdead5d');
+  const [fetchedImageUrl, setFetchedImageUrl] = useState<string | null>(null);
+  const [testUrlError, setTestUrlError] = useState<string | null>(null);
 
-    setIsWriteLoading(true);
-    const testContent = `This is a test file generated at ${new Date().toISOString()}. User ID: ${user.uid}`;
-    const storageRef = ref(storage, `users/${user.uid}/test/test-${Date.now()}.txt`);
-
-    try {
-      await uploadString(storageRef, testContent, 'raw');
-      toast({
-        title: 'Upload Successful',
-        description: `Test file was successfully written to: ${storageRef.fullPath}`,
-      });
-    } catch (error: any) {
-      console.error('Storage Write Test Error:', error);
-      toast({ variant: 'destructive', title: 'Upload Failed', description: error.message || 'An unknown error occurred.' });
-    } finally {
-      setIsWriteLoading(false);
-    }
-  };
 
   const handlePngTest = async () => {
     if (isUserLoading || !user) {
@@ -93,6 +73,38 @@ export default function StorageTestPage() {
       setIsPngLoading(false);
     }
   };
+  
+  const handleUrlTest = async () => {
+    if (!testUrl) {
+      setTestUrlError('Please enter a URL to test.');
+      return;
+    }
+    setIsUrlLoading(true);
+    setFetchedImageUrl(null);
+    setTestUrlError(null);
+    try {
+        const response = await fetch(testUrl);
+        if (response.ok) {
+            // We got the image, let's turn it into a blob URL to display
+            const blob = await response.blob();
+            const localUrl = URL.createObjectURL(blob);
+            setFetchedImageUrl(localUrl);
+            toast({ title: 'Success', description: 'The URL was fetched successfully.'});
+        } else {
+            // The server responded with an error status (e.g., 403, 404)
+            const errorText = await response.text();
+            setTestUrlError(`Fetch failed: Server responded with status ${response.status}. Response: ${errorText}`);
+            toast({ variant: 'destructive', title: 'Fetch Error', description: `Server responded with status ${response.status}`});
+        }
+    } catch (error: any) {
+        console.error("Direct URL Fetch Error:", error);
+        setTestUrlError(`Fetch failed: ${error.message}. This is likely a CORS issue or network problem. Check the browser console for more details.`);
+        toast({ variant: 'destructive', title: 'Fetch Failed', description: error.message });
+    } finally {
+        setIsUrlLoading(false);
+    }
+  };
+
 
   return (
     <div className="flex flex-1 flex-col">
@@ -102,6 +114,54 @@ export default function StorageTestPage() {
       />
       <main className="flex-1 p-6 pt-0">
         <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Direct URL Fetch Test</CardTitle>
+              <CardDescription>
+                Paste a Firebase Storage URL (with token) to test if it can be fetched directly by the browser. This helps diagnose CORS or network issues.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+               <div className="space-y-2">
+                 <Input 
+                   type="url"
+                   value={testUrl}
+                   onChange={(e) => setTestUrl(e.target.value)}
+                   placeholder="Enter Firebase Storage URL"
+                   disabled={isUrlLoading}
+                 />
+                 <Button onClick={handleUrlTest} disabled={isUrlLoading || isUserLoading}>
+                  {isUrlLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Testing...
+                    </>
+                  ) : (
+                    <>
+                      <LinkIcon className="mr-2" />
+                      Test URL Fetch
+                    </>
+                  )}
+                </Button>
+               </div>
+               
+              {fetchedImageUrl && (
+                 <div>
+                    <p className="text-sm font-medium">Image fetched successfully:</p>
+                    <div className="mt-2 w-24 h-24 border rounded-md p-2">
+                      <Image src={fetchedImageUrl} alt="Fetched from URL" width={96} height={96} unoptimized/>
+                    </div>
+                 </div>
+              )}
+               {testUrlError && (
+                 <div className="p-3 rounded-md bg-destructive/10 text-destructive-foreground border border-destructive/50 text-sm flex items-start gap-3">
+                   <AlertCircle className="h-5 w-5 shrink-0" />
+                   <p>{testUrlError}</p>
+                 </div>
+               )}
+            </CardContent>
+          </Card>
           
           <Card>
             <CardHeader>
@@ -137,31 +197,6 @@ export default function StorageTestPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Storage Write Test (.txt)</CardTitle>
-              <CardDescription>
-                Attempts to write a small text file to{' '}
-                <code className="bg-muted px-1 py-0.5 rounded-sm text-sm">/users/&#123;uid&#125;/test/</code>.
-                This verifies basic write permissions for user-specific folders.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button onClick={handleTestUpload} disabled={isWriteLoading || isUserLoading}>
-                {isWriteLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Testing...
-                  </>
-                ) : (
-                  <>
-                    <Beaker className="mr-2" />
-                    Run Write Test (.txt)
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
         </div>
       </main>
     </div>

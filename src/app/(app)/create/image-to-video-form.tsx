@@ -89,6 +89,7 @@ export function ImageToVideoForm() {
     };
     
     try {
+      // Ensure the initial record is created before doing anything else.
       await setDoc(newVideoDocRef, initialVideoData).catch(error => {
         errorEmitter.emit(
           'permission-error',
@@ -158,12 +159,13 @@ export function ImageToVideoForm() {
     } catch (error: any) {
       console.error(error);
       const errorData = { status: 'failed', error: error.message || 'Unknown error' };
-      // Update the doc with the error, but only if the doc was created
-      if (newVideoDocRef) {
-         await updateDoc(newVideoDocRef, errorData).catch(updateError => {
-          console.error("Failed to update doc with error state:", updateError);
-        });
-      }
+      // Update the doc with the error.
+      await updateDoc(newVideoDocRef, errorData).catch(updateError => {
+        console.error("Failed to update doc with error state:", updateError);
+        // Log this failure too, as it's a separate problem.
+        logError(updateError, { context: 'ImageToVideoForm.onSubmit.updateError', userId: user.uid });
+      });
+      
       toast({
         variant: 'destructive',
         title: 'Operation Failed',

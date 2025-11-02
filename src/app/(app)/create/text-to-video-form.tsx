@@ -70,6 +70,7 @@ export function TextToVideoForm() {
     };
 
     try {
+      // Ensure the initial record is created before doing anything else.
       await setDoc(newVideoDocRef, initialVideoData).catch(error => {
         errorEmitter.emit(
           'permission-error',
@@ -128,6 +129,7 @@ export function TextToVideoForm() {
       const errorData = { status: 'failed', error: error.message || 'Unknown error' };
       await updateDoc(newVideoDocRef, errorData).catch(updateError => {
         console.error("Failed to update doc with error state:", updateError);
+        logError(updateError, { context: 'TextToVideoForm.onSubmit.updateError', userId: user.uid });
       });
       
       toast({

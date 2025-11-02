@@ -3,7 +3,8 @@
 import type { MediaItem, PromptItem } from '@/lib/types';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
-const MAX_ITEMS = 10;
+const MAX_MEDIA_ITEMS = 2;
+const MAX_PROMPT_ITEMS = 10;
 
 interface AppContextType {
   mediaItems: MediaItem[];
@@ -42,7 +43,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   useEffect(() => {
     if (isHydrated) {
       try {
-        const itemsToStore = mediaItems.slice(0, MAX_ITEMS);
+        const itemsToStore = mediaItems.slice(0, MAX_MEDIA_ITEMS);
         localStorage.setItem('mediaItems', JSON.stringify(itemsToStore));
       } catch (error) {
         console.error("Failed to save mediaItems to localStorage", error);
@@ -52,13 +53,13 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   useEffect(() => {
     if (isHydrated) {
-        const itemsToStore = promptHistory.slice(0, MAX_ITEMS);
+        const itemsToStore = promptHistory.slice(0, MAX_PROMPT_ITEMS);
         localStorage.setItem('promptHistory', JSON.stringify(itemsToStore));
     }
   }, [promptHistory, isHydrated]);
 
   const addMediaItem = useCallback((item: Omit<MediaItem, 'id' | 'createdAt'>) => {
-    setMediaItems(prev => [{ ...item, id: new Date().toISOString(), createdAt: new Date().toISOString() }, ...prev].slice(0, MAX_ITEMS));
+    setMediaItems(prev => [{ ...item, id: new Date().toISOString(), createdAt: new Date().toISOString() }, ...prev].slice(0, MAX_MEDIA_ITEMS));
   }, []);
 
   const addPromptItem = useCallback((item: Omit<PromptItem, 'id' | 'createdAt'>) => {
@@ -67,7 +68,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (prev.some(p => p.text === item.text)) {
             return prev;
         }
-        return [{ ...item, id: new Date().toISOString(), createdAt: new Date().toISOString() }, ...prev].slice(0, MAX_ITEMS);
+        return [{ ...item, id: new Date().toISOString(), createdAt: new Date().toISOString() }, ...prev].slice(0, MAX_PROMPT_ITEMS);
     });
   }, []);
 

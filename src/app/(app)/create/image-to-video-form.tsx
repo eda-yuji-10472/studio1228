@@ -101,11 +101,12 @@ export function ImageToVideoForm() {
         throw error; // re-throw to be caught by outer catch
       });
 
-      // 2. Upload source image
+      // 2. Upload source image to get its URL for the thumbnail
       const imageRef = ref(storage, `users/${user.uid}/images/${Date.now()}-${sourceImageFile.name}`);
       const imageUploadResult = await uploadBytes(imageRef, sourceImageFile);
       const sourceImageUrl = await getDownloadURL(imageUploadResult.ref);
       
+      // Also save the source image as its own media item
       const imagesCollection = collection(firestore, 'users', user.uid, 'images');
       const newImageDoc = doc(imagesCollection);
       const imageData = {
@@ -136,7 +137,7 @@ export function ImageToVideoForm() {
         // 5. Update Firestore record with final data
         const finalVideoData = {
           storageUrl: downloadURL,
-          thumbnailUrl: sourceImageUrl,
+          thumbnailUrl: sourceImageUrl, // Use the uploaded source image URL as the thumbnail
           status: 'completed',
           inputTokens: result.usage?.inputTokens || 0,
           outputTokens: result.usage?.outputTokens || 0,
@@ -157,9 +158,12 @@ export function ImageToVideoForm() {
     } catch (error: any) {
       console.error(error);
       const errorData = { status: 'failed', error: error.message || 'Unknown error' };
-      await updateDoc(newVideoDocRef, errorData).catch(updateError => {
-        console.error("Failed to update doc with error state:", updateError);
-      });
+      // Update the doc with the error, but only if the doc was created
+      if (newVideoDocRef) {
+         await updateDoc(newVideoDocRef, errorData).catch(updateError => {
+          console.error("Failed to update doc with error state:", updateError);
+        });
+      }
       toast({
         variant: 'destructive',
         title: 'Operation Failed',

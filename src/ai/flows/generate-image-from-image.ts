@@ -72,7 +72,7 @@ const generateImageFromImageFlow = ai.defineFlow(
     });
 
     if (!media?.url) {
-      // If generation failed for any reason, return the reason to the client.
+      // If generation failed for any reason (e.g. safety), return the reason to the client.
       return {
         imageDataUri: '',
         usage,

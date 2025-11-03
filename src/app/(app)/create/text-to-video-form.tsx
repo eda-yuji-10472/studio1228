@@ -134,7 +134,6 @@ export function TextToVideoForm() {
         docUpdate.status = 'failed';
         docUpdate.error = `Generation failed with reason: ${reason}`;
         await updateDoc(newVideoDocRef, docUpdate);
-        throw new Error(`Video generation failed to return a video. Reason: ${reason}`);
       }
     } catch (error: any) {
       console.error(error);
@@ -221,3 +220,5 @@ export function TextToVideoForm() {
     </Card>
   );
 }
+
+    

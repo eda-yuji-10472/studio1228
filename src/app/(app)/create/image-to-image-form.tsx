@@ -168,7 +168,6 @@ export function ImageToImageForm() {
          docUpdate.status = 'failed';
          docUpdate.error = `Generation failed with reason: ${reason}`;
          await updateDoc(newImageDocRef, docUpdate);
-         throw new Error(`Image generation failed to return an image. Reason: ${reason}`);
       }
     } catch (error: any) {
       console.error(error);
@@ -299,3 +298,5 @@ export function ImageToImageForm() {
     </Card>
   );
 }
+
+    

@@ -29,7 +29,7 @@ const formSchema = z.object({
   image: z.any().refine(file => file instanceof File, 'Please upload an image.'),
   prompt: z.string().min(10, 'Prompt must be at least 10 characters long.'),
   personGeneration: z.string().default('allow_adult'),
-  aspectRatio: z.string().default('16:9'),
+  aspectRatio: z.string().default('9:16'),
 });
 
 export function ImageToVideoForm() {
@@ -46,7 +46,7 @@ export function ImageToVideoForm() {
     defaultValues: {
       prompt: '',
       personGeneration: 'allow_adult',
-      aspectRatio: '16:9',
+      aspectRatio: '9:16',
     },
   });
 

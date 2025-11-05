@@ -30,7 +30,7 @@ type CsvRow = { [key: string]: string };
 // A simple CSV parser. For more complex CSVs, a library like PapaParse would be better.
 const parseCsv = (csvText: string): { headers: string[], rows: CsvRow[] } => {
   const lines = csvText.trim().split(/\r\n|\n/);
-  const headers = lines[0].split(',').map(h => h.trim());
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').trim());
   const rows = lines.slice(1).map(line => {
     // This simple regex handles quotes but may not cover all edge cases.
     const values = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || [];
@@ -64,7 +64,7 @@ export function CsvToImageForm() {
         const text = event.target?.result as string;
         try {
           const parsed = parseCsv(text);
-          if (!parsed.headers.includes('prompt')) {
+          if (!parsed.headers.some(h => h.toLowerCase() === 'prompt')) {
             toast({
               variant: 'destructive',
               title: 'Invalid CSV Format',
@@ -90,7 +90,9 @@ export function CsvToImageForm() {
   const processRow = async (row: CsvRow, index: number, total: number) => {
     if (!user) throw new Error("User not authenticated.");
 
-    const prompt = row.prompt;
+    const promptKey = csvData?.headers.find(h => h.toLowerCase() === 'prompt');
+    const prompt = promptKey ? row[promptKey] : undefined;
+
     if (!prompt) {
         setProcessingStatus(prev => ({...prev, results: [...prev.results, {prompt: `Row ${index + 1} (no prompt)`, imageUrl: null, error: "Skipped: 'prompt' column is empty."}]}));
         return;
@@ -310,3 +312,5 @@ export function CsvToImageForm() {
     </Card>
   );
 }
+
+    

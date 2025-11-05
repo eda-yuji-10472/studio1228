@@ -56,6 +56,7 @@ export function CsvToImageForm() {
   });
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    form.setValue('csv', e.target.files);
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -251,7 +252,7 @@ export function CsvToImageForm() {
             <FormField
               control={form.control}
               name="csv"
-              render={({ field }) => (
+              render={() => (
                 <FormItem>
                   <FormLabel>CSV File</FormLabel>
                   <FormControl>
@@ -266,12 +267,8 @@ export function CsvToImageForm() {
                         type="file"
                         accept=".csv"
                         className="absolute h-full w-full opacity-0"
-                        value={undefined}
-                        onChange={(e) => {
-                          field.onChange(e.target.files);
-                          handleFileChange(e);
-                        }}
-                        disabled={isButtonDisabled}
+                        onChange={handleFileChange}
+                        disabled={isProcessing}
                       />
                     </div>
                   </FormControl>

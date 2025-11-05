@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Sparkles, Upload, FileText, Table as TableIcon, AlertTriangle } from 'lucide-react';
+import { Loader2, Sparkles, Upload, AlertTriangle } from 'lucide-react';
 import { useUser } from '@/firebase/auth/use-user';
 import { firestore, storage } from '@/firebase';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
@@ -20,11 +20,9 @@ import * as mime from 'mime-types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import NextImage from 'next/image';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
 
 const formSchema = z.object({
-  csv: z.any().refine(files => files instanceof FileList && files.length > 0, 'Please upload a CSV file.'),
+  csv: z.any().refine(files => files?.[0], 'Please upload a CSV file.'),
 });
 
 type CsvRow = { [key: string]: string };
@@ -247,7 +245,7 @@ export function CsvToImageForm() {
   }
 
   return (
-    <Card className="max-w-4xl">
+    <Card className="max-w-2xl">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleBatchGenerate)}>
           <CardHeader>
@@ -274,7 +272,10 @@ export function CsvToImageForm() {
                             type="file"
                             accept=".csv"
                             className="absolute h-full w-full opacity-0"
-                            onChange={handleFileChange}
+                            onChange={(e) => {
+                              field.onChange(e.target.files);
+                              handleFileChange(e);
+                            }}
                             disabled={isProcessing}
                           />
                         </div>
@@ -323,5 +324,3 @@ export function CsvToImageForm() {
     </Card>
   );
 }
-
-    

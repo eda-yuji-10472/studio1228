@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Sparkles, Upload, AlertTriangle, Text } from 'lucide-react';
+import { Loader2, Text, Upload, AlertTriangle } from 'lucide-react';
 import { useUser } from '@/firebase/auth/use-user';
 import { firestore, storage } from '@/firebase';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
@@ -47,10 +47,10 @@ const parseCsv = (csvText: string): { headers: string[], rows: CsvRow[] } => {
 
 
 /**
- * Creates an image from structured CSV data using the Canvas API.
+ * Creates an image from structured CSV data, drawing it in a table format.
  * @param headers The CSV headers.
  * @param row The data for a single CSV row.
- * @returns A data URI of the generated transparent PNG image.
+ * @returns A data URI of the generated transparent PNG image with a grid.
  */
 const createTextImage = (headers: string[], row: CsvRow): Promise<string> => {
     return new Promise((resolve) => {
@@ -58,22 +58,26 @@ const createTextImage = (headers: string[], row: CsvRow): Promise<string> => {
         const ctx = canvas.getContext('2d');
         if (!ctx) return resolve('');
 
-        const numColumns = 3;
+        // --- Layout & Style Configuration ---
+        const numColumns = Math.min(3, headers.length);
         const totalWidth = 1200;
-        const padding = 20;
-        const columnGap = 20;
-        
+        const cellPadding = 10;
+        const columnGap = 0; // No gap for grid lines
+        const rowGap = 0;
         const fontSize = 16;
         const lineHeight = fontSize * 1.5;
-        ctx.font = `${fontSize}px sans-serif`;
+        const headerFontColor = '#333333';
+        const valueFontColor = '#000000';
+        const gridColor = '#DDDDDD';
+        ctx.font = `bold ${fontSize}px sans-serif`;
 
-        const columnWidth = (totalWidth - (padding * 2) - (columnGap * (numColumns - 1))) / numColumns;
-        
-        const dataToRender = headers.map(header => ({ header, value: row[header] || '' }));
+        const columnWidth = (totalWidth - (cellPadding * 2 * numColumns) - (columnGap * (numColumns - 1))) / numColumns;
 
+        // --- Text Wrapping and Measurement ---
         const wrapText = (text: string, maxWidth: number): string[] => {
+            if (!text) return [''];
             const words = text.split(' ');
-            const lines: string[] = [];
+            let lines: string[] = [];
             let currentLine = words[0] || '';
             for (let i = 1; i < words.length; i++) {
                 const word = words[i];
@@ -89,57 +93,67 @@ const createTextImage = (headers: string[], row: CsvRow): Promise<string> => {
             return lines;
         };
 
-        const columnLines: string[][][] = Array.from({ length: numColumns }, () => []);
-        const columnHeights: number[] = Array(numColumns).fill(0);
-        let currentColumn = 0;
-
-        dataToRender.forEach(item => {
-            const headerLines = wrapText(`${item.header}:`, columnWidth);
-            const valueLines = wrapText(item.value, columnWidth);
-            const itemHeight = (headerLines.length + valueLines.length) * lineHeight + (lineHeight / 2);
-
-            columnLines[currentColumn].push(headerLines, valueLines);
-            columnHeights[currentColumn] += itemHeight;
-
-            currentColumn = (currentColumn + 1) % numColumns;
+        // --- Calculate Cell Dimensions and Total Height ---
+        const cellData = headers.map(header => {
+            const headerLines = wrapText(header, columnWidth - cellPadding * 2);
+            const valueLines = wrapText(row[header] || '', columnWidth - cellPadding * 2);
+            const cellHeight = (headerLines.length + valueLines.length) * lineHeight + cellPadding * 2;
+            return { header, value: row[header] || '', headerLines, valueLines, cellHeight };
         });
 
-        const maxHeight = Math.max(...columnHeights);
+        const rowHeights: number[] = [];
+        for (let i = 0; i < cellData.length; i += numColumns) {
+            const chunk = cellData.slice(i, i + numColumns);
+            const maxRowHeight = Math.max(...chunk.map(c => c.cellHeight), 0);
+            rowHeights.push(maxRowHeight);
+        }
 
+        const totalHeight = rowHeights.reduce((sum, height) => sum + height, 0) + (rowHeights.length - 1) * rowGap;
+
+        // --- Set Canvas Size ---
         canvas.width = totalWidth;
-        canvas.height = maxHeight + padding * 2;
-        
-        // Reset font after canvas resize
-        ctx.font = `${fontSize}px sans-serif`;
-        ctx.textBaseline = 'top';
+        canvas.height = totalHeight;
 
-        // Background is transparent by default, so we don't fill it.
+        // --- Drawing ---
+        ctx.clearRect(0, 0, canvas.width, canvas.height); // Ensure transparent background
 
-        let yOffsets = Array(numColumns).fill(padding);
+        let currentY = 0;
+        for (let i = 0; i < rowHeights.length; i++) {
+            const rowHeight = rowHeights[i];
+            const rowCells = cellData.slice(i * numColumns, i * numColumns + numColumns);
 
-        for(let i=0; i < dataToRender.length; i++) {
-            const colIdx = i % numColumns;
-            const x = padding + colIdx * (columnWidth + columnGap);
-            const { header, value } = dataToRender[i];
-            
-            // Draw Header
-            ctx.fillStyle = '#333333'; // Darker grey for header
-            const headerLines = wrapText(`${header}:`, columnWidth);
-            headerLines.forEach(line => {
-                ctx.fillText(line, x, yOffsets[colIdx]);
-                yOffsets[colIdx] += lineHeight;
-            });
-            
-            // Draw Value
-            ctx.fillStyle = '#000000'; // Black for value
-            const valueLines = wrapText(value, columnWidth);
-            valueLines.forEach(line => {
-                ctx.fillText(line, x, yOffsets[colIdx]);
-                yOffsets[colIdx] += lineHeight;
-            });
-            
-            // Add spacing between items
-            yOffsets[colIdx] += lineHeight / 2;
+            let currentX = 0;
+            for (let j = 0; j < numColumns; j++) {
+                // Draw Cell Grid
+                ctx.strokeStyle = gridColor;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(currentX, currentY, columnWidth, rowHeight);
+
+                // Draw Text if cell exists
+                if (j < rowCells.length) {
+                    const cell = rowCells[j];
+                    let textY = currentY + cellPadding;
+
+                    // Draw Header
+                    ctx.font = `bold ${fontSize}px sans-serif`;
+                    ctx.fillStyle = headerFontColor;
+                    ctx.textBaseline = 'top';
+                    cell.headerLines.forEach(line => {
+                        ctx.fillText(line, currentX + cellPadding, textY);
+                        textY += lineHeight;
+                    });
+                    
+                    // Draw Value
+                    ctx.font = `${fontSize}px sans-serif`;
+                    ctx.fillStyle = valueFontColor;
+                    cell.valueLines.forEach(line => {
+                        ctx.fillText(line, currentX + cellPadding, textY);
+                        textY += lineHeight;
+                    });
+                }
+                currentX += columnWidth + columnGap;
+            }
+            currentY += rowHeight + rowGap;
         }
 
         resolve(canvas.toDataURL('image/png'));
@@ -354,7 +368,7 @@ export function CsvToImageForm() {
                 <FormField
                   control={form.control}
                   name="csv"
-                  render={() => (
+                  render={({ field }) => (
                     <FormItem>
                       <FormLabel>1. Upload CSV File</FormLabel>
                       <FormControl>

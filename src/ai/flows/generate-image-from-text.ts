@@ -51,11 +51,8 @@ const generateImageFromTextFlow = ai.defineFlow(
   },
   async input => {
     const {media, usage, custom, finishReason, safetyRatings} = await ai.generate({
-      model: googleAI.model('gemini-2.5-flash-image-preview'),
+      model: googleAI.model('imagen-4.0-fast-generate-001'),
       prompt: input.prompt,
-       config: {
-        responseModalities: ['IMAGE'],
-      },
     });
 
     if (!media?.url) {
@@ -68,11 +65,8 @@ const generateImageFromTextFlow = ai.defineFlow(
       }
     }
 
-    const outputBase64 = media.url.split(',')[1];
-    const imageDataUri = `data:image/png;base64,${outputBase64}`;
-
     return {
-      imageDataUri,
+      imageDataUri: media.url,
       usage,
       cacheHit: custom?.cacheHit || false,
       finishReason,

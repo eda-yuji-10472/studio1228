@@ -262,15 +262,14 @@ export function CsvToImageForm() {
                           <p className="text-sm text-muted-foreground">CSV file with a 'prompt' header</p>
                         </div>
                       <Input
-                        {...field}
                         id="csv-upload-input"
                         type="file"
                         accept=".csv"
                         className="absolute h-full w-full opacity-0"
-                        value={undefined} 
-                        onChange={e => {
-                            field.onChange(e.target.files);
-                            handleFileChange(e);
+                        value={undefined}
+                        onChange={(e) => {
+                          field.onChange(e.target.files);
+                          handleFileChange(e);
                         }}
                         disabled={isButtonDisabled}
                       />

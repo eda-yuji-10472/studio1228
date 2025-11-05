@@ -20,9 +20,11 @@ import * as mime from 'mime-types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import NextImage from 'next/image';
+import { Textarea } from '@/components/ui/textarea';
 
 const formSchema = z.object({
   csv: z.any().refine(files => files?.[0], 'Please upload a CSV file.'),
+  stylePrompt: z.string().optional(),
 });
 
 type CsvRow = { [key: string]: string };
@@ -31,11 +33,9 @@ const parseCsv = (csvText: string): { headers: string[], rows: CsvRow[] } => {
   const lines = csvText.trim().split(/\r\n|\n/);
   const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').trim());
   const rows = lines.slice(1).map(line => {
-    // This regex handles quoted fields, including those with commas inside
     const values = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || [];
     return headers.reduce((obj, header, index) => {
       const value = values[index] || '';
-      // Remove quotes from quoted fields
       obj[header] = value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value;
       return obj;
     }, {} as CsvRow);
@@ -88,20 +88,26 @@ export function CsvToImageForm() {
     }
   };
 
-  const processRow = async (row: CsvRow, index: number) => {
+  const processRow = async (row: CsvRow, index: number, stylePrompt: string | undefined) => {
     if (!user) throw new Error("User not authenticated.");
 
-    // Construct prompt from all key-value pairs in the row
-    const prompt = Object.entries(row)
-      .map(([key, value]) => `${key}: ${value}`)
-      .join(', ');
+    let prompt: string;
+    if (stylePrompt) {
+        prompt = stylePrompt.replace(/{(\w+)}/g, (match, key) => {
+            return row[key] || match;
+        });
+    } else {
+        prompt = Object.entries(row)
+            .map(([key, value]) => `${key}: ${value}`)
+            .join(', ');
+    }
 
     if (!prompt) {
-        setProcessingStatus(prev => ({...prev, results: [...prev.results, {prompt: `Row ${index + 1}`, imageUrl: null, error: `Skipped: Row is empty.`}]}));
+        setProcessingStatus(prev => ({...prev, results: [...prev.results, {prompt: `Row ${index + 1}`, imageUrl: null, error: `Skipped: Row is empty or prompt is invalid.`}]}));
         return;
     }
     
-    setProcessingStatus(prev => ({ ...prev, currentTask: `Generating image for: "${prompt}"...` }));
+    setProcessingStatus(prev => ({ ...prev, currentTask: `Generating image for: "${prompt.substring(0, 100)}..."` }));
 
     const imagesCollection = collection(firestore, 'users', user.uid, 'images');
     const newImageDocRef = doc(imagesCollection);
@@ -158,7 +164,7 @@ export function CsvToImageForm() {
     }
   };
 
-  const handleBatchGenerate = async () => {
+  const handleBatchGenerate = async (values: z.infer<typeof formSchema>) => {
     if (!csvData || !user) {
         toast({variant: "destructive", title: "Prerequisites not met", description: "Cannot start generation without CSV data and user login."});
         return;
@@ -171,7 +177,7 @@ export function CsvToImageForm() {
     const totalRows = rowsToProcess.length;
 
     for (let i = 0; i < totalRows; i++) {
-        await processRow(rowsToProcess[i], i);
+        await processRow(rowsToProcess[i], i, values.stylePrompt);
         setProcessingStatus(prev => ({ ...prev, progress: ((i + 1) / totalRows) * 100 }));
     }
 
@@ -183,7 +189,7 @@ export function CsvToImageForm() {
     setIsProcessing(false);
     setCsvData(null);
     setProcessingStatus({ progress: 0, currentTask: '', results: [] });
-    form.reset();
+    form.reset({csv: null, stylePrompt: ''});
     const fileInput = document.getElementById('csv-upload-input') as HTMLInputElement;
     if (fileInput) {
       fileInput.value = '';
@@ -250,10 +256,10 @@ export function CsvToImageForm() {
         <form onSubmit={form.handleSubmit(handleBatchGenerate)}>
           <CardHeader>
             <CardTitle>CSV to Image Generation</CardTitle>
-            <CardDescription>Upload a CSV file. Each row will be converted into a prompt to generate an image.</CardDescription>
+            <CardDescription>Upload a CSV file. A prompt will be generated for each row to create an image.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-             <div className="grid grid-cols-1">
+             <div className="space-y-2">
                 <FormField
                   control={form.control}
                   name="csv"
@@ -285,6 +291,28 @@ export function CsvToImageForm() {
                   )}
                 />
              </div>
+            
+            <FormField
+                control={form.control}
+                name="stylePrompt"
+                render={({ field }) => (
+                <FormItem>
+                    <FormLabel>2. Style Prompt (Optional)</FormLabel>
+                    <FormControl>
+                    <Textarea
+                        placeholder="e.g., A high-quality, photorealistic image of a {product_name}, {style}. Use CSV column headers in {curly_braces}."
+                        className="min-h-[100px] resize-y"
+                        {...field}
+                    />
+                    </FormControl>
+                    <FormDescription>
+                    Provide a template for the prompt. Use column headers in curly braces (e.g., {'{column_name}'}) to insert data from each row. If left blank, a generic prompt will be created from all columns.
+                    </FormDescription>
+                    <FormMessage />
+                </FormItem>
+                )}
+            />
+
 
             {csvData && (
                 <div>
@@ -300,7 +328,7 @@ export function CsvToImageForm() {
                                 {csvData.rows.slice(0, 5).map((row, i) => (
                                     <TableRow key={i}>
                                         {csvData.headers.map(header => (
-                                            <TableCell key={header} className="max-w-xs truncate">
+                                            <TableCell key={header} className="max-w-[120px] truncate">
                                                 {row[header]}
                                             </TableCell>
                                         ))}

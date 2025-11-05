@@ -30,7 +30,7 @@ export default function CreatePage() {
             </TabsTrigger>
             <TabsTrigger value="csv-to-image">
               <FileText className="mr-2" />
-              CSV to Image
+              CSV to Text Image
             </TabsTrigger>
           </TabsList>
           <TabsContent value="text-to-video" className="mt-6">
@@ -50,3 +50,5 @@ export default function CreatePage() {
     </div>
   );
 }
+
+    

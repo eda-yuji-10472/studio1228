@@ -6,21 +6,22 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Sparkles, Upload, AlertTriangle } from 'lucide-react';
+import { Loader2, Sparkles, Upload, AlertTriangle, Text } from 'lucide-react';
 import { useUser } from '@/firebase/auth/use-user';
 import { firestore, storage } from '@/firebase';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { collection, doc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { logError } from '@/lib/logger';
-import { generateImageFromText, GenerateImageFromTextOutput } from '@/ai/flows/generate-image-from-text';
 import * as mime from 'mime-types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import NextImage from 'next/image';
 import { Textarea } from '@/components/ui/textarea';
+import { FormDescription } from '@/components/ui/form';
+
 
 const formSchema = z.object({
   csv: z.any().refine(files => files?.[0], 'Please upload a CSV file.'),
@@ -41,6 +42,58 @@ const parseCsv = (csvText: string): { headers: string[], rows: CsvRow[] } => {
     }, {} as CsvRow);
   });
   return { headers, rows };
+};
+
+/**
+ * Creates an image from text using the Canvas API.
+ * @param text The text to render on the image.
+ * @returns A data URI of the generated PNG image.
+ */
+const createTextImage = (text: string): Promise<string> => {
+    return new Promise((resolve) => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve('');
+
+        const padding = 20;
+        const fontSize = 16;
+        const lineHeight = fontSize * 1.5;
+        const maxWidth = 800; // Max width for the image
+
+        ctx.font = `${fontSize}px sans-serif`;
+
+        const lines = text.split(', ').reduce((acc, part) => {
+          let lastLine = acc[acc.length - 1];
+          const testLine = lastLine ? `${lastLine}, ${part}` : part;
+          const metrics = ctx.measureText(testLine);
+          if (lastLine && metrics.width > maxWidth - padding * 2) {
+            acc.push(part);
+          } else {
+            acc[acc.length - 1] = testLine;
+          }
+          return acc;
+        }, [''] as string[]);
+
+
+        canvas.width = maxWidth;
+        canvas.height = lines.length * lineHeight + padding * 2;
+
+        // Background
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Text
+        ctx.fillStyle = '#000000';
+        ctx.font = `${fontSize}px sans-serif`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+
+        lines.forEach((line, i) => {
+            ctx.fillText(line, padding, padding + i * lineHeight);
+        });
+
+        resolve(canvas.toDataURL('image/png'));
+    });
 };
 
 
@@ -107,7 +160,7 @@ export function CsvToImageForm() {
         return;
     }
     
-    setProcessingStatus(prev => ({ ...prev, currentTask: `Generating image for: "${prompt.substring(0, 100)}..."` }));
+    setProcessingStatus(prev => ({ ...prev, currentTask: `Converting text to image for: "${prompt.substring(0, 100)}..."` }));
 
     const imagesCollection = collection(firestore, 'users', user.uid, 'images');
     const newImageDocRef = doc(imagesCollection);
@@ -124,35 +177,23 @@ export function CsvToImageForm() {
         createdAt: serverTimestamp(),
       });
       
-      const result: GenerateImageFromTextOutput = await generateImageFromText({ prompt });
+      const imageDataUri = await createTextImage(prompt);
 
-      const docUpdate: any = {
-        inputTokens: result.usage?.inputTokens ?? 0,
-        outputTokens: result.usage?.outputTokens ?? 0,
-        totalTokens: result.usage?.totalTokens ?? 0,
-        cacheHit: result.cacheHit || false,
-        finishReason: result.finishReason || null,
-        safetyRatings: result.safetyRatings || [],
-      };
-
-      if (result.imageDataUri) {
-        const contentType = result.imageDataUri.match(/data:(.*);base64,/)?.[1] || 'image/png';
+      if (imageDataUri) {
+        const contentType = imageDataUri.match(/data:(.*);base64,/)?.[1] || 'image/png';
         const extension = mime.extension(contentType) || 'png';
         const imageRef = ref(storage, `users/${user.uid}/images/${newImageDocRef.id}.${extension}`);
-        const uploadResult = await uploadString(imageRef, result.imageDataUri, 'data_url');
+        const uploadResult = await uploadString(imageRef, imageDataUri, 'data_url');
         const downloadURL = await getDownloadURL(uploadResult.ref);
 
-        docUpdate.storageUrl = downloadURL;
-        docUpdate.status = 'completed';
-        await updateDoc(newImageDocRef, docUpdate);
+        await updateDoc(newImageDocRef, {
+            storageUrl: downloadURL,
+            status: 'completed',
+        });
 
         setProcessingStatus(prev => ({...prev, results: [...prev.results, {prompt, imageUrl: downloadURL}]}));
       } else {
-        docUpdate.status = 'failed';
-        const reason = result.finishReason || 'unknown';
-        docUpdate.error = `Generation failed: ${reason}`;
-        await updateDoc(newImageDocRef, docUpdate);
-        setProcessingStatus(prev => ({...prev, results: [...prev.results, {prompt, imageUrl: null, error: `Generation failed: ${reason}`}]}));
+        throw new Error('Canvas toDataURL failed.');
       }
 
     } catch (error: any) {
@@ -202,7 +243,7 @@ export function CsvToImageForm() {
     return (
         <Card className="max-w-4xl">
             <CardHeader>
-                <CardTitle>Batch Generation Progress</CardTitle>
+                <CardTitle>Batch Conversion Progress</CardTitle>
                 <CardDescription>{processingStatus.currentTask}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -215,7 +256,7 @@ export function CsvToImageForm() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead className="w-[120px]">Image</TableHead>
-                                <TableHead>Prompt</TableHead>
+                                <TableHead>Text</TableHead>
                                 <TableHead>Status</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -255,8 +296,8 @@ export function CsvToImageForm() {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleBatchGenerate)}>
           <CardHeader>
-            <CardTitle>CSV to Image Generation</CardTitle>
-            <CardDescription>Upload a CSV file. A prompt will be generated for each row to create an image.</CardDescription>
+            <CardTitle>CSV to Image Conversion</CardTitle>
+            <CardDescription>Upload a CSV file. Each row will be converted into a text-based image.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
              <div className="space-y-2">
@@ -279,7 +320,7 @@ export function CsvToImageForm() {
                             accept=".csv"
                             className="absolute h-full w-full opacity-0"
                             onChange={(e) => {
-                              field.onChange(e.target.files);
+                              form.setValue('csv', e.target.files);
                               handleFileChange(e);
                             }}
                             disabled={isProcessing}
@@ -297,16 +338,16 @@ export function CsvToImageForm() {
                 name="stylePrompt"
                 render={({ field }) => (
                 <FormItem>
-                    <FormLabel>2. Style Prompt (Optional)</FormLabel>
+                    <FormLabel>2. Text Formatting (Optional)</FormLabel>
                     <FormControl>
                     <Textarea
-                        placeholder="e.g., A high-quality, photorealistic image of a {product_name}, {style}. Use CSV column headers in {curly_braces}."
+                        placeholder="e.g., Product: {product_name}, Style: {style}. Use CSV column headers in {curly_braces}."
                         className="min-h-[100px] resize-y"
                         {...field}
                     />
                     </FormControl>
                     <FormDescription>
-                    Provide a template for the prompt. Use column headers in curly braces (e.g., {'{column_name}'}) to insert data from each row. If left blank, a generic prompt will be created from all columns.
+                    Provide a template for the text that will appear in the image. Use column headers in curly braces (e.g., {'{column_name}'}) to insert data. If left blank, all columns will be included automatically.
                     </FormDescription>
                     <FormMessage />
                 </FormItem>
@@ -343,8 +384,8 @@ export function CsvToImageForm() {
           </CardContent>
           <CardFooter className="flex justify-end">
             <Button type="submit" disabled={isButtonDisabled} size="lg">
-                {isProcessing ? <Loader2 className="mr-2 animate-spin"/> : <Sparkles className="mr-2" />}
-                Generate {csvData ? `${csvData.rows.length} Images` : 'Images'}
+                {isProcessing ? <Loader2 className="mr-2 animate-spin"/> : <Text className="mr-2" />}
+                Convert {csvData ? `${csvData.rows.length} Rows` : 'Rows'} to Images
             </Button>
           </CardFooter>
         </form>
@@ -352,3 +393,5 @@ export function CsvToImageForm() {
     </Card>
   );
 }
+
+    

@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Text, Upload, AlertTriangle } from 'lucide-react';
@@ -33,11 +33,9 @@ const parseCsv = (csvText: string): { headers: string[], rows: CsvRow[] } => {
   const lines = csvText.trim().split(/\r\n|\n/);
   const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').trim());
   const rows = lines.slice(1).map(line => {
-    // This regex handles quoted strings, including commas inside them.
     const values = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || [];
     return headers.reduce((obj, header, index) => {
       const value = values[index] || '';
-      // Remove quotes from the parsed value
       obj[header] = value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value;
       return obj;
     }, {} as CsvRow);
@@ -69,6 +67,8 @@ const createTextImage = (headers: string[], row: CsvRow): Promise<string> => {
         const headerFontColor = '#333333';
         const valueFontColor = '#000000';
         const gridColor = '#DDDDDD';
+        const evenCellColor = '#FFFFFF';
+        const oddCellColor = '#F0F8FF'; // AliceBlue
         ctx.font = `bold ${fontSize}px sans-serif`;
 
         const columnWidth = (totalWidth - (cellPadding * 2 * numColumns) - (columnGap * (numColumns - 1))) / numColumns;
@@ -124,6 +124,10 @@ const createTextImage = (headers: string[], row: CsvRow): Promise<string> => {
 
             let currentX = 0;
             for (let j = 0; j < numColumns; j++) {
+                 // Fill cell background
+                ctx.fillStyle = (i + j) % 2 === 0 ? evenCellColor : oddCellColor;
+                ctx.fillRect(currentX, currentY, columnWidth, rowHeight);
+
                 // Draw Cell Grid
                 ctx.strokeStyle = gridColor;
                 ctx.lineWidth = 1;

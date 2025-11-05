@@ -21,10 +21,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Progress } from '@/components/ui/progress';
 import NextImage from 'next/image';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 
 const formSchema = z.object({
   csv: z.any().refine(files => files instanceof FileList && files.length > 0, 'Please upload a CSV file.'),
-  promptColumn: z.string().min(1, 'Please select the column to use for prompts.'),
 });
 
 type CsvRow = { [key: string]: string };
@@ -33,9 +33,11 @@ const parseCsv = (csvText: string): { headers: string[], rows: CsvRow[] } => {
   const lines = csvText.trim().split(/\r\n|\n/);
   const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').trim());
   const rows = lines.slice(1).map(line => {
+    // This regex handles quoted fields, including those with commas inside
     const values = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || [];
     return headers.reduce((obj, header, index) => {
       const value = values[index] || '';
+      // Remove quotes from quoted fields
       obj[header] = value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value;
       return obj;
     }, {} as CsvRow);
@@ -53,9 +55,6 @@ export function CsvToImageForm() {
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      promptColumn: '',
-    }
   });
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,14 +67,13 @@ export function CsvToImageForm() {
         const text = event.target?.result as string;
         try {
           const parsed = parseCsv(text);
-           if (!parsed.headers || parsed.headers.length === 0) {
+           if (!parsed.headers || parsed.headers.length === 0 || parsed.rows.length === 0) {
              toast({
               variant: 'destructive',
               title: 'Invalid CSV',
-              description: 'The CSV file appears to be empty or does not contain a valid header row.',
+              description: 'The CSV file appears to be empty or does not contain a valid header row and data.',
             });
             setCsvData(null);
-            form.resetField('promptColumn');
             return;
           }
           setCsvData(parsed);
@@ -92,13 +90,16 @@ export function CsvToImageForm() {
     }
   };
 
-  const processRow = async (row: CsvRow, index: number, total: number, promptColumn: string) => {
+  const processRow = async (row: CsvRow, index: number) => {
     if (!user) throw new Error("User not authenticated.");
 
-    const prompt = row[promptColumn];
+    // Construct prompt from all key-value pairs in the row
+    const prompt = Object.entries(row)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join(', ');
 
     if (!prompt) {
-        setProcessingStatus(prev => ({...prev, results: [...prev.results, {prompt: `Row ${index + 1} (no prompt)`, imageUrl: null, error: `Skipped: '${promptColumn}' column is empty.`}]}));
+        setProcessingStatus(prev => ({...prev, results: [...prev.results, {prompt: `Row ${index + 1}`, imageUrl: null, error: `Skipped: Row is empty.`}]}));
         return;
     }
     
@@ -111,7 +112,7 @@ export function CsvToImageForm() {
       await setDoc(newImageDocRef, {
         id: newImageDocRef.id,
         userId: user.uid,
-        title: prompt,
+        title: `Row ${index + 1}: ${prompt.substring(0, 100)}`,
         prompt: prompt,
         storageUrl: '',
         type: 'image' as const,
@@ -159,7 +160,7 @@ export function CsvToImageForm() {
     }
   };
 
-  const handleBatchGenerate = async (values: z.infer<typeof formSchema>) => {
+  const handleBatchGenerate = async () => {
     if (!csvData || !user) {
         toast({variant: "destructive", title: "Prerequisites not met", description: "Cannot start generation without CSV data and user login."});
         return;
@@ -172,7 +173,7 @@ export function CsvToImageForm() {
     const totalRows = rowsToProcess.length;
 
     for (let i = 0; i < totalRows; i++) {
-        await processRow(rowsToProcess[i], i, totalRows, values.promptColumn);
+        await processRow(rowsToProcess[i], i);
         setProcessingStatus(prev => ({ ...prev, progress: ((i + 1) / totalRows) * 100 }));
     }
 
@@ -191,7 +192,7 @@ export function CsvToImageForm() {
     }
   }
 
-  const isButtonDisabled = isProcessing || isUserLoading || !form.formState.isValid;
+  const isButtonDisabled = isProcessing || isUserLoading || !csvData;
 
   if (isProcessing || processingStatus.results.length > 0) {
     return (
@@ -251,14 +252,14 @@ export function CsvToImageForm() {
         <form onSubmit={form.handleSubmit(handleBatchGenerate)}>
           <CardHeader>
             <CardTitle>CSV to Image Generation</CardTitle>
-            <CardDescription>Upload a CSV file and select the column containing prompts to generate an image for each row.</CardDescription>
+            <CardDescription>Upload a CSV file. Each row will be converted into a prompt to generate an image.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+             <div className="grid grid-cols-1">
                 <FormField
                   control={form.control}
                   name="csv"
-                  render={() => (
+                  render={({ field }) => (
                     <FormItem>
                       <FormLabel>1. Upload CSV File</FormLabel>
                       <FormControl>
@@ -282,30 +283,6 @@ export function CsvToImageForm() {
                     </FormItem>
                   )}
                 />
-                 {csvData && (
-                    <FormField
-                    control={form.control}
-                    name="promptColumn"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>2. Select Prompt Column</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select a column to use for prompts" />
-                                </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    {csvData.headers.map(header => (
-                                        <SelectItem key={header} value={header}>{header}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                    />
-                 )}
              </div>
 
             {csvData && (
@@ -322,7 +299,7 @@ export function CsvToImageForm() {
                                 {csvData.rows.slice(0, 5).map((row, i) => (
                                     <TableRow key={i}>
                                         {csvData.headers.map(header => (
-                                            <TableCell key={header} className={cn("max-w-xs truncate", form.watch('promptColumn') === header && 'bg-primary/10 font-medium')}>
+                                            <TableCell key={header} className="max-w-xs truncate">
                                                 {row[header]}
                                             </TableCell>
                                         ))}

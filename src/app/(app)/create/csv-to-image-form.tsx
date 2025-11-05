@@ -343,7 +343,12 @@ export function CsvToImageForm() {
         
         await Promise.all(successfulResults.map(async (result) => {
             if (result.imageUrl) {
-                const response = await fetch(result.imageUrl);
+                // Fix: Fetch via Next.js image optimization endpoint to bypass CORS
+                const fetchUrl = `/_next/image?url=${encodeURIComponent(result.imageUrl)}&w=3840&q=75`;
+                const response = await fetch(fetchUrl);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch image ${result.filename}: ${response.statusText}`);
+                }
                 const blob = await response.blob();
                 zip.file(result.filename, blob);
             }

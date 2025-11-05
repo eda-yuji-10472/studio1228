@@ -22,7 +22,7 @@ import { Progress } from '@/components/ui/progress';
 import NextImage from 'next/image';
 
 const formSchema = z.object({
-  csv: z.any().refine(file => file instanceof FileList && file.length > 0, 'Please upload a CSV file.'),
+  csv: z.any().refine(files => files instanceof FileList && files.length > 0, 'Please upload a CSV file.'),
 });
 
 type CsvRow = { [key: string]: string };
@@ -266,7 +266,6 @@ export function CsvToImageForm() {
                         type="file" 
                         accept=".csv" 
                         className="absolute h-full w-full opacity-0" 
-                        {...field}
                         onChange={e => {
                             field.onChange(e.target.files);
                             handleFileChange(e);
@@ -313,4 +312,3 @@ export function CsvToImageForm() {
     </Card>
   );
 }
-    

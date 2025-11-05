@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
@@ -34,9 +34,11 @@ const parseCsv = (csvText: string): { headers: string[], rows: CsvRow[] } => {
   const lines = csvText.trim().split(/\r\n|\n/);
   const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').trim());
   const rows = lines.slice(1).map(line => {
+    // This regex handles quoted strings, including commas inside them.
     const values = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || [];
     return headers.reduce((obj, header, index) => {
       const value = values[index] || '';
+      // Remove quotes from the parsed value
       obj[header] = value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value;
       return obj;
     }, {} as CsvRow);
@@ -44,53 +46,102 @@ const parseCsv = (csvText: string): { headers: string[], rows: CsvRow[] } => {
   return { headers, rows };
 };
 
+
 /**
- * Creates an image from text using the Canvas API.
- * @param text The text to render on the image.
- * @returns A data URI of the generated PNG image.
+ * Creates an image from structured CSV data using the Canvas API.
+ * @param headers The CSV headers.
+ * @param row The data for a single CSV row.
+ * @returns A data URI of the generated transparent PNG image.
  */
-const createTextImage = (text: string): Promise<string> => {
+const createTextImage = (headers: string[], row: CsvRow): Promise<string> => {
     return new Promise((resolve) => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         if (!ctx) return resolve('');
 
+        const numColumns = 3;
+        const totalWidth = 1200;
         const padding = 20;
+        const columnGap = 20;
+        
         const fontSize = 16;
         const lineHeight = fontSize * 1.5;
-        const maxWidth = 800; // Max width for the image
-
         ctx.font = `${fontSize}px sans-serif`;
 
-        const lines = text.split(', ').reduce((acc, part) => {
-          let lastLine = acc[acc.length - 1];
-          const testLine = lastLine ? `${lastLine}, ${part}` : part;
-          const metrics = ctx.measureText(testLine);
-          if (lastLine && metrics.width > maxWidth - padding * 2) {
-            acc.push(part);
-          } else {
-            acc[acc.length - 1] = testLine;
-          }
-          return acc;
-        }, [''] as string[]);
+        const columnWidth = (totalWidth - (padding * 2) - (columnGap * (numColumns - 1))) / numColumns;
+        
+        const dataToRender = headers.map(header => ({ header, value: row[header] || '' }));
 
+        const wrapText = (text: string, maxWidth: number): string[] => {
+            const words = text.split(' ');
+            const lines: string[] = [];
+            let currentLine = words[0] || '';
+            for (let i = 1; i < words.length; i++) {
+                const word = words[i];
+                const width = ctx.measureText(currentLine + ' ' + word).width;
+                if (width < maxWidth) {
+                    currentLine += ' ' + word;
+                } else {
+                    lines.push(currentLine);
+                    currentLine = word;
+                }
+            }
+            lines.push(currentLine);
+            return lines;
+        };
 
-        canvas.width = maxWidth;
-        canvas.height = lines.length * lineHeight + padding * 2;
+        const columnLines: string[][][] = Array.from({ length: numColumns }, () => []);
+        const columnHeights: number[] = Array(numColumns).fill(0);
+        let currentColumn = 0;
 
-        // Background
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        dataToRender.forEach(item => {
+            const headerLines = wrapText(`${item.header}:`, columnWidth);
+            const valueLines = wrapText(item.value, columnWidth);
+            const itemHeight = (headerLines.length + valueLines.length) * lineHeight + (lineHeight / 2);
 
-        // Text
-        ctx.fillStyle = '#000000';
+            columnLines[currentColumn].push(headerLines, valueLines);
+            columnHeights[currentColumn] += itemHeight;
+
+            currentColumn = (currentColumn + 1) % numColumns;
+        });
+
+        const maxHeight = Math.max(...columnHeights);
+
+        canvas.width = totalWidth;
+        canvas.height = maxHeight + padding * 2;
+        
+        // Reset font after canvas resize
         ctx.font = `${fontSize}px sans-serif`;
-        ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
 
-        lines.forEach((line, i) => {
-            ctx.fillText(line, padding, padding + i * lineHeight);
-        });
+        // Background is transparent by default, so we don't fill it.
+
+        let yOffsets = Array(numColumns).fill(padding);
+
+        for(let i=0; i < dataToRender.length; i++) {
+            const colIdx = i % numColumns;
+            const x = padding + colIdx * (columnWidth + columnGap);
+            const { header, value } = dataToRender[i];
+            
+            // Draw Header
+            ctx.fillStyle = '#333333'; // Darker grey for header
+            const headerLines = wrapText(`${header}:`, columnWidth);
+            headerLines.forEach(line => {
+                ctx.fillText(line, x, yOffsets[colIdx]);
+                yOffsets[colIdx] += lineHeight;
+            });
+            
+            // Draw Value
+            ctx.fillStyle = '#000000'; // Black for value
+            const valueLines = wrapText(value, columnWidth);
+            valueLines.forEach(line => {
+                ctx.fillText(line, x, yOffsets[colIdx]);
+                yOffsets[colIdx] += lineHeight;
+            });
+            
+            // Add spacing between items
+            yOffsets[colIdx] += lineHeight / 2;
+        }
 
         resolve(canvas.toDataURL('image/png'));
     });
@@ -109,9 +160,9 @@ export function CsvToImageForm() {
   });
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    form.setValue('csv', e.target.files);
     const files = e.target.files;
     if (files && files.length > 0) {
-      form.setValue('csv', files);
       const file = files[0];
       const reader = new FileReader();
       reader.onload = (event) => {
@@ -141,7 +192,7 @@ export function CsvToImageForm() {
     }
   };
 
-  const processRow = async (row: CsvRow, index: number, stylePrompt: string | undefined) => {
+  const processRow = async (row: CsvRow, index: number, headers: string[], stylePrompt: string | undefined) => {
     if (!user) throw new Error("User not authenticated.");
 
     let prompt: string;
@@ -160,7 +211,7 @@ export function CsvToImageForm() {
         return;
     }
     
-    setProcessingStatus(prev => ({ ...prev, currentTask: `Converting text to image for: "${prompt.substring(0, 100)}..."` }));
+    setProcessingStatus(prev => ({ ...prev, currentTask: `Converting text to image for row ${index + 1}` }));
 
     const imagesCollection = collection(firestore, 'users', user.uid, 'images');
     const newImageDocRef = doc(imagesCollection);
@@ -177,7 +228,7 @@ export function CsvToImageForm() {
         createdAt: serverTimestamp(),
       });
       
-      const imageDataUri = await createTextImage(prompt);
+      const imageDataUri = await createTextImage(headers, row);
 
       if (imageDataUri) {
         const contentType = imageDataUri.match(/data:(.*);base64,/)?.[1] || 'image/png';
@@ -214,11 +265,11 @@ export function CsvToImageForm() {
     setIsProcessing(true);
     setProcessingStatus({ progress: 0, currentTask: 'Starting...', results: [] });
 
-    const rowsToProcess = csvData.rows;
+    const { headers, rows: rowsToProcess } = csvData;
     const totalRows = rowsToProcess.length;
 
     for (let i = 0; i < totalRows; i++) {
-        await processRow(rowsToProcess[i], i, values.stylePrompt);
+        await processRow(rowsToProcess[i], i, headers, values.stylePrompt);
         setProcessingStatus(prev => ({ ...prev, progress: ((i + 1) / totalRows) * 100 }));
     }
 
@@ -256,7 +307,7 @@ export function CsvToImageForm() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead className="w-[120px]">Image</TableHead>
-                                <TableHead>Text</TableHead>
+                                <TableHead>Prompt</TableHead>
                                 <TableHead>Status</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -266,7 +317,7 @@ export function CsvToImageForm() {
                                     <TableCell>
                                         {result.imageUrl ? (
                                             <a href={result.imageUrl} target="_blank" rel="noopener noreferrer">
-                                                <NextImage src={result.imageUrl} alt={result.prompt} width={100} height={100} className="rounded-md object-cover aspect-square"/>
+                                                <NextImage src={result.imageUrl} alt={result.prompt} width={100} height={100} className="rounded-md object-cover aspect-square bg-gray-100 p-1"/>
                                             </a>
                                         ) : <div className="w-[100px] h-[100px] bg-muted rounded-md flex items-center justify-center"><AlertTriangle className="h-6 w-6 text-destructive"/></div>}
                                     </TableCell>
@@ -304,7 +355,7 @@ export function CsvToImageForm() {
                 <FormField
                   control={form.control}
                   name="csv"
-                  render={({ field }) => (
+                  render={() => (
                     <FormItem>
                       <FormLabel>1. Upload CSV File</FormLabel>
                       <FormControl>
@@ -319,10 +370,7 @@ export function CsvToImageForm() {
                             type="file"
                             accept=".csv"
                             className="absolute h-full w-full opacity-0"
-                            onChange={(e) => {
-                              form.setValue('csv', e.target.files);
-                              handleFileChange(e);
-                            }}
+                            onChange={handleFileChange}
                             disabled={isProcessing}
                           />
                         </div>
@@ -338,16 +386,16 @@ export function CsvToImageForm() {
                 name="stylePrompt"
                 render={({ field }) => (
                 <FormItem>
-                    <FormLabel>2. Text Formatting (Optional)</FormLabel>
+                    <FormLabel>2. Style Prompt (Optional)</FormLabel>
                     <FormControl>
                     <Textarea
-                        placeholder="e.g., Product: {product_name}, Style: {style}. Use CSV column headers in {curly_braces}."
+                        placeholder="e.g., A high-quality, photorealistic image of {item}. Detailed, studio lighting, 8k."
                         className="min-h-[100px] resize-y"
                         {...field}
                     />
                     </FormControl>
                     <FormDescription>
-                    Provide a template for the text that will appear in the image. Use column headers in curly braces (e.g., {'{column_name}'}) to insert data. If left blank, all columns will be included automatically.
+                    This is for AI generation, which is currently disabled. The text formatting here will not be applied to the canvas-based text images.
                     </FormDescription>
                     <FormMessage />
                 </FormItem>

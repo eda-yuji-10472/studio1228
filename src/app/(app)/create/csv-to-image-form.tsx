@@ -9,17 +9,18 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Text, Upload, AlertTriangle } from 'lucide-react';
+import { Loader2, Text, Upload, AlertTriangle, Download } from 'lucide-react';
 import { useUser } from '@/firebase/auth/use-user';
 import { firestore, storage } from '@/firebase';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { collection, doc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { logError } from '@/lib/logger';
-import * as mime from 'mime-types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import NextImage from 'next/image';
 import { Textarea } from '@/components/ui/textarea';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 
 
 const formSchema = z.object({
@@ -164,11 +165,18 @@ const createTextImage = (headers: string[], row: CsvRow): Promise<string> => {
     });
 };
 
+type Result = {
+    prompt: string;
+    imageUrl: string | null;
+    filename: string;
+    error?: string;
+};
 
 export function CsvToImageForm() {
   const [csvData, setCsvData] = useState<{ headers: string[], rows: CsvRow[] } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [processingStatus, setProcessingStatus] = useState<{ progress: number, currentTask: string, results: {prompt: string, imageUrl: string | null, error?: string}[] }>({ progress: 0, currentTask: '', results: [] });
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState<{ progress: number, currentTask: string, results: Result[] }>({ progress: 0, currentTask: '', results: [] });
   const [originalCsvFilename, setOriginalCsvFilename] = useState<string>('batch');
   const { toast } = useToast();
   const { user, isLoading: isUserLoading } = useUser();
@@ -229,8 +237,13 @@ export function CsvToImageForm() {
             .join(', ');
     }
 
+    // Create a sortable and descriptive filename
+    const rowIndexPadded = String(index + 1).padStart(String(totalRows).length, '0');
+    const safePromptPart = sanitizeFilename(prompt);
+    const filename = `${originalCsvFilename}-${rowIndexPadded}-${safePromptPart}.png`;
+
     if (!prompt) {
-        setProcessingStatus(prev => ({...prev, results: [...prev.results, {prompt: `Row ${index + 1}`, imageUrl: null, error: `Skipped: Row is empty or prompt is invalid.`}]}));
+        setProcessingStatus(prev => ({...prev, results: [...prev.results, {prompt: `Row ${index + 1}`, imageUrl: null, filename, error: `Skipped: Row is empty or prompt is invalid.`}]}));
         return;
     }
     
@@ -240,11 +253,6 @@ export function CsvToImageForm() {
     const newImageDocRef = doc(imagesCollection); // Still use this for Firestore ID
 
     try {
-      // Create a sortable and descriptive filename
-      const rowIndexPadded = String(index + 1).padStart(String(totalRows).length, '0');
-      const safePromptPart = sanitizeFilename(prompt);
-      const filename = `${originalCsvFilename}-${rowIndexPadded}-${safePromptPart}.png`;
-      
       await setDoc(newImageDocRef, {
         id: newImageDocRef.id,
         userId: user.uid,
@@ -269,7 +277,7 @@ export function CsvToImageForm() {
             status: 'completed',
         });
 
-        setProcessingStatus(prev => ({...prev, results: [...prev.results, {prompt, imageUrl: downloadURL}]}));
+        setProcessingStatus(prev => ({...prev, results: [...prev.results, {prompt, imageUrl: downloadURL, filename}]}));
       } else {
         throw new Error('Canvas toDataURL failed.');
       }
@@ -278,7 +286,7 @@ export function CsvToImageForm() {
       console.error(error);
       const errorData = { status: 'failed' as const, error: error.message || 'Unknown error' };
       await updateDoc(newImageDocRef, errorData).catch(updateError => logError(updateError, { context: 'CsvToImageForm.processRow.updateError', userId: user?.uid }));
-      setProcessingStatus(prev => ({...prev, results: [...prev.results, {prompt, imageUrl: null, error: error.message}]}));
+      setProcessingStatus(prev => ({...prev, results: [...prev.results, {prompt, imageUrl: null, filename, error: error.message}]}));
       await logError(error, { context: 'CsvToImageForm.processRow', userId: user.uid });
     }
   };
@@ -314,7 +322,48 @@ export function CsvToImageForm() {
     if (fileInput) {
       fileInput.value = '';
     }
-  }
+  };
+
+  const handleDownloadAll = async () => {
+    const successfulResults = processingStatus.results.filter(r => r.imageUrl);
+    if (successfulResults.length === 0) {
+        toast({
+            variant: "destructive",
+            title: "No Images to Download",
+            description: "There are no successfully generated images to download.",
+        });
+        return;
+    }
+
+    setIsDownloading(true);
+    toast({ title: "Preparing ZIP...", description: `Packaging ${successfulResults.length} images.` });
+
+    try {
+        const zip = new JSZip();
+        
+        await Promise.all(successfulResults.map(async (result) => {
+            if (result.imageUrl) {
+                const response = await fetch(result.imageUrl);
+                const blob = await response.blob();
+                zip.file(result.filename, blob);
+            }
+        }));
+
+        const content = await zip.generateAsync({ type: "blob" });
+        saveAs(content, `${originalCsvFilename}-images.zip`);
+        toast({ title: "Download Started", description: "Your ZIP file is being downloaded." });
+    } catch (error: any) {
+        console.error("Failed to create ZIP file", error);
+        toast({
+            variant: "destructive",
+            title: "Download Failed",
+            description: `Could not create the ZIP file. ${error.message}`,
+        });
+    } finally {
+        setIsDownloading(false);
+    }
+  };
+
 
   const isButtonDisabled = isProcessing || isUserLoading || !csvData;
 
@@ -363,8 +412,12 @@ export function CsvToImageForm() {
                     </Table>
                 </div>
             </CardContent>
-            <CardFooter>
+            <CardFooter className="flex justify-between">
                  <Button onClick={handleReset}>Start New Batch</Button>
+                 <Button onClick={handleDownloadAll} disabled={isDownloading || processingStatus.results.filter(r => r.imageUrl).length === 0}>
+                    {isDownloading ? <Loader2 className="mr-2 animate-spin"/> : <Download className="mr-2"/>}
+                    Download All as ZIP
+                 </Button>
             </CardFooter>
         </Card>
     );

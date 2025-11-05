@@ -169,6 +169,7 @@ export function CsvToImageForm() {
   const [csvData, setCsvData] = useState<{ headers: string[], rows: CsvRow[] } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState<{ progress: number, currentTask: string, results: {prompt: string, imageUrl: string | null, error?: string}[] }>({ progress: 0, currentTask: '', results: [] });
+  const [originalCsvFilename, setOriginalCsvFilename] = useState<string>('batch');
   const { toast } = useToast();
   const { user, isLoading: isUserLoading } = useUser();
 
@@ -181,6 +182,7 @@ export function CsvToImageForm() {
     const files = e.target.files;
     if (files && files.length > 0) {
       const file = files[0];
+      setOriginalCsvFilename(file.name.replace(/\.[^/.]+$/, "")); // Store filename without extension
       const reader = new FileReader();
       reader.onload = (event) => {
         const text = event.target?.result as string;
@@ -208,8 +210,12 @@ export function CsvToImageForm() {
       reader.readAsText(file);
     }
   };
+  
+  const sanitizeFilename = (text: string) => {
+    return text.replace(/[^a-zA-Z0-9-]/g, '-').replace(/-+/g, '-').substring(0, 50);
+  };
 
-  const processRow = async (row: CsvRow, index: number, headers: string[], stylePrompt: string | undefined) => {
+  const processRow = async (row: CsvRow, index: number, totalRows: number, headers: string[], stylePrompt: string | undefined) => {
     if (!user) throw new Error("User not authenticated.");
 
     let prompt: string;
@@ -231,9 +237,14 @@ export function CsvToImageForm() {
     setProcessingStatus(prev => ({ ...prev, currentTask: `Converting text to image for row ${index + 1}` }));
 
     const imagesCollection = collection(firestore, 'users', user.uid, 'images');
-    const newImageDocRef = doc(imagesCollection);
+    const newImageDocRef = doc(imagesCollection); // Still use this for Firestore ID
 
     try {
+      // Create a sortable and descriptive filename
+      const rowIndexPadded = String(index + 1).padStart(String(totalRows).length, '0');
+      const safePromptPart = sanitizeFilename(prompt);
+      const filename = `${originalCsvFilename}-${rowIndexPadded}-${safePromptPart}.png`;
+      
       await setDoc(newImageDocRef, {
         id: newImageDocRef.id,
         userId: user.uid,
@@ -242,15 +253,14 @@ export function CsvToImageForm() {
         storageUrl: '',
         type: 'image' as const,
         status: 'processing' as const,
+        filename, // Store the friendly filename
         createdAt: serverTimestamp(),
       });
       
       const imageDataUri = await createTextImage(headers, row);
 
       if (imageDataUri) {
-        const contentType = imageDataUri.match(/data:(.*);base64,/)?.[1] || 'image/png';
-        const extension = mime.extension(contentType) || 'png';
-        const imageRef = ref(storage, `users/${user.uid}/images/${newImageDocRef.id}.${extension}`);
+        const imageRef = ref(storage, `users/${user.uid}/images/${filename}`);
         const uploadResult = await uploadString(imageRef, imageDataUri, 'data_url');
         const downloadURL = await getDownloadURL(uploadResult.ref);
 
@@ -286,7 +296,7 @@ export function CsvToImageForm() {
     const totalRows = rowsToProcess.length;
 
     for (let i = 0; i < totalRows; i++) {
-        await processRow(rowsToProcess[i], i, headers, values.stylePrompt);
+        await processRow(rowsToProcess[i], i, totalRows, headers, values.stylePrompt);
         setProcessingStatus(prev => ({ ...prev, progress: ((i + 1) / totalRows) * 100 }));
     }
 
@@ -299,6 +309,7 @@ export function CsvToImageForm() {
     setCsvData(null);
     setProcessingStatus({ progress: 0, currentTask: '', results: [] });
     form.reset({csv: null, stylePrompt: ''});
+    setOriginalCsvFilename('batch');
     const fileInput = document.getElementById('csv-upload-input') as HTMLInputElement;
     if (fileInput) {
       fileInput.value = '';

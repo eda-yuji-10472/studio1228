@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { useForm } from 'react';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Sparkles, Upload, AlertTriangle, Text } from 'lucide-react';
@@ -20,7 +20,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Progress } from '@/components/ui/progress';
 import NextImage from 'next/image';
 import { Textarea } from '@/components/ui/textarea';
-import { FormDescription } from '@/components/ui/form';
 
 
 const formSchema = z.object({
@@ -395,7 +394,7 @@ export function CsvToImageForm() {
                     />
                     </FormControl>
                     <FormDescription>
-                    This is for AI generation, which is currently disabled. The text formatting here will not be applied to the canvas-based text images.
+                    Provide a template for the prompt. Use column headers in curly braces (e.g., {'{column_name}'}) to insert data from each row. If left blank, a generic prompt will be created from all columns.
                     </FormDescription>
                     <FormMessage />
                 </FormItem>
@@ -441,5 +440,3 @@ export function CsvToImageForm() {
     </Card>
   );
 }
-
-    

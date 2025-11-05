@@ -20,19 +20,19 @@ import * as mime from 'mime-types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import NextImage from 'next/image';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const formSchema = z.object({
   csv: z.any().refine(files => files instanceof FileList && files.length > 0, 'Please upload a CSV file.'),
+  promptColumn: z.string().min(1, 'Please select the column to use for prompts.'),
 });
 
 type CsvRow = { [key: string]: string };
 
-// A simple CSV parser. For more complex CSVs, a library like PapaParse would be better.
 const parseCsv = (csvText: string): { headers: string[], rows: CsvRow[] } => {
   const lines = csvText.trim().split(/\r\n|\n/);
   const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').trim());
   const rows = lines.slice(1).map(line => {
-    // This simple regex handles quotes but may not cover all edge cases.
     const values = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || [];
     return headers.reduce((obj, header, index) => {
       const value = values[index] || '';
@@ -53,24 +53,29 @@ export function CsvToImageForm() {
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
+    defaultValues: {
+      promptColumn: '',
+    }
   });
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    form.setValue('csv', e.target.files);
-    const file = e.target.files?.[0];
-    if (file) {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      form.setValue('csv', files);
+      const file = files[0];
       const reader = new FileReader();
       reader.onload = (event) => {
         const text = event.target?.result as string;
         try {
           const parsed = parseCsv(text);
-          if (!parsed.headers.some(h => h.toLowerCase() === 'prompt')) {
-            toast({
+           if (!parsed.headers || parsed.headers.length === 0) {
+             toast({
               variant: 'destructive',
-              title: 'Invalid CSV Format',
-              description: 'The CSV file must contain a "prompt" column.',
+              title: 'Invalid CSV',
+              description: 'The CSV file appears to be empty or does not contain a valid header row.',
             });
             setCsvData(null);
+            form.resetField('promptColumn');
             return;
           }
           setCsvData(parsed);
@@ -87,14 +92,13 @@ export function CsvToImageForm() {
     }
   };
 
-  const processRow = async (row: CsvRow, index: number, total: number) => {
+  const processRow = async (row: CsvRow, index: number, total: number, promptColumn: string) => {
     if (!user) throw new Error("User not authenticated.");
 
-    const promptKey = csvData?.headers.find(h => h.toLowerCase() === 'prompt');
-    const prompt = promptKey ? row[promptKey] : undefined;
+    const prompt = row[promptColumn];
 
     if (!prompt) {
-        setProcessingStatus(prev => ({...prev, results: [...prev.results, {prompt: `Row ${index + 1} (no prompt)`, imageUrl: null, error: "Skipped: 'prompt' column is empty."}]}));
+        setProcessingStatus(prev => ({...prev, results: [...prev.results, {prompt: `Row ${index + 1} (no prompt)`, imageUrl: null, error: `Skipped: '${promptColumn}' column is empty.`}]}));
         return;
     }
     
@@ -143,7 +147,7 @@ export function CsvToImageForm() {
         const reason = result.finishReason || 'unknown';
         docUpdate.error = `Generation failed: ${reason}`;
         await updateDoc(newImageDocRef, docUpdate);
-        throw new Error(`Generation failed: ${reason}`);
+        setProcessingStatus(prev => ({...prev, results: [...prev.results, {prompt, imageUrl: null, error: `Generation failed: ${reason}`}]}));
       }
 
     } catch (error: any) {
@@ -155,7 +159,7 @@ export function CsvToImageForm() {
     }
   };
 
-  const handleBatchGenerate = async () => {
+  const handleBatchGenerate = async (values: z.infer<typeof formSchema>) => {
     if (!csvData || !user) {
         toast({variant: "destructive", title: "Prerequisites not met", description: "Cannot start generation without CSV data and user login."});
         return;
@@ -168,13 +172,12 @@ export function CsvToImageForm() {
     const totalRows = rowsToProcess.length;
 
     for (let i = 0; i < totalRows; i++) {
-        await processRow(rowsToProcess[i], i, totalRows);
+        await processRow(rowsToProcess[i], i, totalRows, values.promptColumn);
         setProcessingStatus(prev => ({ ...prev, progress: ((i + 1) / totalRows) * 100 }));
     }
 
     setProcessingStatus(prev => ({ ...prev, currentTask: 'Batch processing complete!' }));
     toast({ title: 'Batch Complete', description: `Processed ${totalRows} rows.`});
-    // Keep results on screen, don't set isProcessing to false immediately, let user reset manually.
   };
 
   const handleReset = () => {
@@ -188,7 +191,7 @@ export function CsvToImageForm() {
     }
   }
 
-  const isButtonDisabled = isProcessing || isUserLoading || !csvData;
+  const isButtonDisabled = isProcessing || isUserLoading || !form.formState.isValid;
 
   if (isProcessing || processingStatus.results.length > 0) {
     return (
@@ -245,39 +248,66 @@ export function CsvToImageForm() {
   return (
     <Card className="max-w-4xl">
       <Form {...form}>
-        <form>
+        <form onSubmit={form.handleSubmit(handleBatchGenerate)}>
           <CardHeader>
             <CardTitle>CSV to Image Generation</CardTitle>
-            <CardDescription>Upload a CSV file with a "prompt" column to generate an image for each row.</CardDescription>
+            <CardDescription>Upload a CSV file and select the column containing prompts to generate an image for each row.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <FormField
-              control={form.control}
-              name="csv"
-              render={() => (
-                <FormItem>
-                  <FormLabel>CSV File</FormLabel>
-                  <FormControl>
-                    <div className="relative flex w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-input bg-muted/50 transition-colors hover:border-primary aspect-video">
-                       <div className="flex flex-col items-center justify-center p-12 text-center">
-                          <Upload className="mb-4 h-10 w-10 text-muted-foreground" />
-                          <p className="text-lg font-semibold text-muted-foreground">Click to upload or drag & drop</p>
-                          <p className="text-sm text-muted-foreground">CSV file with a 'prompt' header</p>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="csv"
+                  render={() => (
+                    <FormItem>
+                      <FormLabel>1. Upload CSV File</FormLabel>
+                      <FormControl>
+                        <div className="relative flex w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-input bg-muted/50 transition-colors hover:border-primary aspect-video">
+                           <div className="flex flex-col items-center justify-center p-12 text-center">
+                              <Upload className="mb-4 h-10 w-10 text-muted-foreground" />
+                              <p className="text-lg font-semibold text-muted-foreground">Click to upload or drag & drop</p>
+                              <p className="text-sm text-muted-foreground">Any CSV file with a header row</p>
+                            </div>
+                          <Input
+                            id="csv-upload-input"
+                            type="file"
+                            accept=".csv"
+                            className="absolute h-full w-full opacity-0"
+                            onChange={handleFileChange}
+                            disabled={isProcessing}
+                          />
                         </div>
-                      <Input
-                        id="csv-upload-input"
-                        type="file"
-                        accept=".csv"
-                        className="absolute h-full w-full opacity-0"
-                        onChange={handleFileChange}
-                        disabled={isProcessing}
-                      />
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                 {csvData && (
+                    <FormField
+                    control={form.control}
+                    name="promptColumn"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>2. Select Prompt Column</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select a column to use for prompts" />
+                                </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {csvData.headers.map(header => (
+                                        <SelectItem key={header} value={header}>{header}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                 )}
+             </div>
+
             {csvData && (
                 <div>
                     <h4 className="font-semibold mb-2">CSV Data Preview</h4>
@@ -291,7 +321,11 @@ export function CsvToImageForm() {
                             <TableBody>
                                 {csvData.rows.slice(0, 5).map((row, i) => (
                                     <TableRow key={i}>
-                                        {csvData.headers.map(header => <TableCell key={header} className="max-w-xs truncate">{row[header]}</TableCell>)}
+                                        {csvData.headers.map(header => (
+                                            <TableCell key={header} className={cn("max-w-xs truncate", form.watch('promptColumn') === header && 'bg-primary/10 font-medium')}>
+                                                {row[header]}
+                                            </TableCell>
+                                        ))}
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -302,8 +336,8 @@ export function CsvToImageForm() {
             )}
           </CardContent>
           <CardFooter className="flex justify-end">
-            <Button type="button" onClick={handleBatchGenerate} disabled={isButtonDisabled} size="lg">
-                <Sparkles className="mr-2" />
+            <Button type="submit" disabled={isButtonDisabled} size="lg">
+                {isProcessing ? <Loader2 className="mr-2 animate-spin"/> : <Sparkles className="mr-2" />}
                 Generate {csvData ? `${csvData.rows.length} Images` : 'Images'}
             </Button>
           </CardFooter>

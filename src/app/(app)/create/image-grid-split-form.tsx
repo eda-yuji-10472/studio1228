@@ -9,10 +9,20 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Upload, Grid, Download, ArrowLeft } from 'lucide-react';
+import { Loader2, Upload, Grid, Download, ArrowLeft, Wand2, Sparkles } from 'lucide-react';
 import NextImage from 'next/image';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { generateImageFromImage, GenerateImageFromImageOutput } from '@/ai/flows/generate-image-from-image';
+import { useUser } from '@/firebase/auth/use-user';
+import { firestore, storage } from '@/firebase';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { collection, doc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { logError } from '@/lib/logger';
+import * as mime from 'mime-types';
+
 
 const formSchema = z.object({
   image: z.any().refine(file => file instanceof File, 'Please upload an image.'),
@@ -20,9 +30,14 @@ const formSchema = z.object({
   cols: z.coerce.number().min(1, 'Must be at least 1.').max(10, 'Cannot be more than 10.'),
 });
 
+const regenerateSchema = z.object({
+    prompt: z.string().min(10, 'Prompt must be at least 10 characters long.'),
+});
+
 type SplitResult = {
   imageDataUrl: string;
   filename: string;
+  isRegenerated?: boolean;
 };
 
 export function ImageGridSplitForm() {
@@ -32,7 +47,11 @@ export function ImageGridSplitForm() {
   const [splitResults, setSplitResults] = useState<SplitResult[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [regenerateTarget, setRegenerateTarget] = useState<{ index: number; result: SplitResult } | null>(null);
+
   const { toast } = useToast();
+  const { user, isLoading: isUserLoading } = useUser();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -41,6 +60,14 @@ export function ImageGridSplitForm() {
       cols: 2,
     },
   });
+
+  const regenerateForm = useForm<z.infer<typeof regenerateSchema>>({
+    resolver: zodResolver(regenerateSchema),
+    defaultValues: {
+      prompt: "A high-resolution, detailed photograph of this scene, sharp focus.",
+    },
+  });
+
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -65,6 +92,7 @@ export function ImageGridSplitForm() {
     setSplitResults([]);
     setIsProcessing(false);
     form.reset({ rows: 2, cols: 2, image: undefined });
+    setOriginalFilename('image');
     const fileInput = document.getElementById('grid-split-image-input') as HTMLInputElement;
     if (fileInput) {
       fileInput.value = '';
@@ -153,35 +181,159 @@ export function ImageGridSplitForm() {
     }
   };
 
-  const isButtonDisabled = isProcessing;
+  const handleRegenerateSubmit = async (values: z.infer<typeof regenerateSchema>) => {
+    if (!regenerateTarget || !user) return;
+
+    setIsRegenerating(true);
+
+    const { index, result: targetResult } = regenerateTarget;
+    const imagesCollection = collection(firestore, 'users', user.uid, 'images');
+    const newImageDocRef = doc(imagesCollection);
+
+    try {
+        await setDoc(newImageDocRef, {
+            id: newImageDocRef.id,
+            userId: user.uid,
+            title: `Regenerated: ${values.prompt.substring(0, 100)}`,
+            prompt: values.prompt,
+            storageUrl: '',
+            type: 'image' as const,
+            status: 'processing' as const,
+            filename: targetResult.filename.replace('.png', '_regenerated.png'),
+            createdAt: serverTimestamp(),
+        });
+
+        const regenResult: GenerateImageFromImageOutput = await generateImageFromImage({
+            photoDataUri: targetResult.imageDataUrl,
+            prompt: values.prompt,
+        });
+
+        const docUpdate: any = {
+            inputTokens: regenResult.usage?.inputTokens ?? 0,
+            outputTokens: regenResult.usage?.outputTokens ?? 0,
+            totalTokens: regenResult.usage?.totalTokens ?? 0,
+            cacheHit: regenResult.cacheHit || false,
+            finishReason: regenResult.finishReason || null,
+            safetyRatings: regenResult.safetyRatings || [],
+        };
+
+        if (regenResult.finishReason === 'SAFETY') {
+            throw new Error('Blocked by safety policy.');
+        }
+
+        if (regenResult.imageDataUri) {
+            const contentType = regenResult.imageDataUri.match(/data:(.*);base64,/)?.[1] || 'image/png';
+            const extension = mime.extension(contentType) || 'png';
+            const newFilename = targetResult.filename.replace('.png', `_regenerated.${extension}`);
+
+            const imageRef = ref(storage, `users/${user.uid}/images/${newFilename}`);
+            const uploadResult = await uploadString(imageRef, regenResult.imageDataUri, 'data_url');
+            const downloadURL = await getDownloadURL(uploadResult.ref);
+
+            docUpdate.storageUrl = downloadURL;
+            docUpdate.status = 'completed';
+            await updateDoc(newImageDocRef, docUpdate);
+
+            setSplitResults(currentResults => {
+                const newResults = [...currentResults];
+                newResults[index] = { ...newResults[index], imageDataUrl: regenResult.imageDataUri, isRegenerated: true };
+                return newResults;
+            });
+            toast({ title: 'Regeneration Successful!', description: `Tile ${index + 1} has been regenerated.` });
+        } else {
+            throw new Error(regenResult.finishReason || 'Generation failed to return an image.');
+        }
+
+    } catch (error: any) {
+        console.error("Regeneration failed", error);
+        await updateDoc(newImageDocRef, { status: 'failed', error: error.message }).catch(e => logError(e, {context: 'handleRegenerateSubmit.updateError'}));
+        toast({ variant: 'destructive', title: 'Regeneration Failed', description: error.message });
+        await logError(error, { context: 'handleRegenerateSubmit', userId: user.uid });
+    } finally {
+        setIsRegenerating(false);
+        setRegenerateTarget(null);
+    }
+};
+
+  const isButtonDisabled = isProcessing || isUserLoading;
 
   if (splitResults.length > 0) {
     return (
-        <Card className="max-w-4xl">
-            <CardHeader>
-                <CardTitle>Splitting Complete</CardTitle>
-                <CardDescription>{`Your image was successfully split into ${splitResults.length} tiles.`}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="grid gap-2 overflow-y-auto max-h-[60vh] p-1" style={{ gridTemplateColumns: `repeat(${form.getValues('cols')}, minmax(0, 1fr))` }}>
-                    {splitResults.map((result, index) => (
-                        <div key={index} className="relative aspect-square border rounded-md">
-                            <NextImage src={result.imageDataUrl} alt={result.filename} fill className="object-contain"/>
-                        </div>
-                    ))}
-                </div>
-            </CardContent>
-            <CardFooter className="flex justify-between">
-                 <Button onClick={handleReset} variant="outline">
-                    <ArrowLeft className="mr-2" />
-                    Split Another Image
-                 </Button>
-                 <Button onClick={handleDownloadAll} disabled={isDownloading}>
-                    {isDownloading ? <Loader2 className="mr-2 animate-spin"/> : <Download className="mr-2"/>}
-                    Download All as ZIP
-                 </Button>
-            </CardFooter>
-        </Card>
+        <>
+            <Card className="max-w-6xl">
+                <CardHeader>
+                    <CardTitle>Splitting Complete</CardTitle>
+                    <CardDescription>{`Your image was successfully split into ${splitResults.length} tiles. You can regenerate individual tiles.`}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="grid gap-2 overflow-y-auto max-h-[60vh] p-1" style={{ gridTemplateColumns: `repeat(${form.getValues('cols')}, minmax(0, 1fr))` }}>
+                        {splitResults.map((result, index) => (
+                            <div key={index} className="relative group aspect-square border rounded-md">
+                                <NextImage src={result.imageDataUrl} alt={result.filename} fill className="object-contain"/>
+                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <Button variant="secondary" onClick={() => setRegenerateTarget({index, result})} disabled={isRegenerating || isUserLoading}>
+                                        <Wand2 className="mr-2"/>
+                                        Regenerate
+                                    </Button>
+                                </div>
+                                {result.isRegenerated && (
+                                    <div className="absolute top-1 right-1 bg-primary text-primary-foreground p-1 rounded-full">
+                                        <Sparkles className="h-3 w-3" />
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </CardContent>
+                <CardFooter className="flex justify-between">
+                    <Button onClick={handleReset} variant="outline">
+                        <ArrowLeft className="mr-2" />
+                        Split Another Image
+                    </Button>
+                    <Button onClick={handleDownloadAll} disabled={isDownloading}>
+                        {isDownloading ? <Loader2 className="mr-2 animate-spin"/> : <Download className="mr-2"/>}
+                        Download All as ZIP
+                    </Button>
+                </CardFooter>
+            </Card>
+
+            <Dialog open={!!regenerateTarget} onOpenChange={(isOpen) => !isOpen && setRegenerateTarget(null)}>
+                <DialogContent>
+                    <Form {...regenerateForm}>
+                        <form onSubmit={regenerateForm.handleSubmit(handleRegenerateSubmit)}>
+                            <DialogHeader>
+                                <DialogTitle>Regenerate Image Tile</DialogTitle>
+                            </DialogHeader>
+                            <div className="py-4 space-y-4">
+                                <div className="relative aspect-square w-full max-w-sm mx-auto rounded-md overflow-hidden border">
+                                    {regenerateTarget && <NextImage src={regenerateTarget.result.imageDataUrl} alt="Tile to regenerate" fill className="object-contain" />}
+                                </div>
+                                <FormField
+                                    control={regenerateForm.control}
+                                    name="prompt"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Regeneration Prompt</FormLabel>
+                                            <FormControl>
+                                                <Textarea placeholder="A high-resolution, detailed photograph..." {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+                            <DialogFooter>
+                                <Button type="button" variant="ghost" onClick={() => setRegenerateTarget(null)} disabled={isRegenerating}>Cancel</Button>
+                                <Button type="submit" disabled={isRegenerating}>
+                                    {isRegenerating && <Loader2 className="mr-2 animate-spin" />}
+                                    {isRegenerating ? 'Regenerating...' : 'Regenerate'}
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </Form>
+                </DialogContent>
+            </Dialog>
+        </>
     )
   }
 
@@ -267,3 +419,5 @@ export function ImageGridSplitForm() {
     </Card>
   );
 }
+
+    

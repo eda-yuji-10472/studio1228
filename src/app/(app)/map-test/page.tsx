@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Home, User } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Home, User, Eye, EyeOff } from 'lucide-react';
 import Image from 'next/image';
 
 const MAP_WIDTH = 160;
@@ -16,6 +16,7 @@ export default function MapTestPage() {
   const [characterPos, setCharacterPos] = useState({ x: 1, y: 1 });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showCollision, setShowCollision] = useState(false);
 
   useEffect(() => {
     const fetchMapData = async () => {
@@ -109,6 +110,15 @@ export default function MapTestPage() {
               unoptimized
               onError={() => setError("Failed to load map image. Please ensure /public/maps/map1/map1.png exists.")}
             />
+            {showCollision && (
+                <div className="absolute inset-0 grid" style={{gridTemplateColumns: `repeat(${MAP_WIDTH}, 1fr)`, gridTemplateRows: `repeat(${MAP_HEIGHT}, 1fr)`}}>
+                    {mapData.flat().map((tile, index) => (
+                        <div key={index} className={`
+                            ${tile === 1 ? 'bg-red-500/50' : 'bg-green-500/30'}
+                        `}></div>
+                    ))}
+                </div>
+            )}
              <div
               className="absolute transition-all duration-200 ease-in-out flex items-center justify-center"
               style={{
@@ -130,12 +140,19 @@ export default function MapTestPage() {
                 <Button onClick={() => moveCharacter(0, 1)}><ArrowDown /></Button>
                 <Button onClick={() => moveCharacter(1, 0)}><ArrowRight /></Button>
              </div>
-             <Button onClick={resetPosition} variant="outline" size="sm">
-                <Home className="mr-2 h-4 w-4" /> Reset Position
-             </Button>
+             <div className="flex gap-2">
+                <Button onClick={resetPosition} variant="outline" size="sm">
+                    <Home className="mr-2 h-4 w-4" /> Reset Position
+                </Button>
+                <Button onClick={() => setShowCollision(s => !s)} variant="outline" size="sm">
+                    {showCollision ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
+                    衝突判定を可視化
+                </Button>
+             </div>
              <div className="text-sm text-muted-foreground p-2 rounded-md border bg-muted">
                 <p>Use arrow keys or WASD to move.</p>
                 <p>Current Position: ({characterPos.x}, {characterPos.y})</p>
+                <p>Walkable: {isWalkable(characterPos.x, characterPos.y) ? 'Yes' : 'No'}</p>
              </div>
           </div>
         </div>

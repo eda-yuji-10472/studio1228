@@ -10,6 +10,8 @@ import Image from 'next/image';
 const MAP_WIDTH = 160;
 const MAP_HEIGHT = 90;
 const TILE_SIZE = 8; // The size of each tile in pixels
+const FAST_MOVE_SPEED = 100; // ms for fast tiles (0)
+const SLOW_MOVE_SPEED = 500; // ms for slow tiles (1)
 
 export default function MapTestPage() {
   const [mapData, setMapData] = useState<number[][] | null>(null);
@@ -17,6 +19,7 @@ export default function MapTestPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCollision, setShowCollision] = useState(false);
+  const [moveSpeed, setMoveSpeed] = useState(FAST_MOVE_SPEED);
 
   useEffect(() => {
     const fetchMapData = async () => {
@@ -45,16 +48,20 @@ export default function MapTestPage() {
     if (y < 0 || y >= MAP_HEIGHT || x < 0 || x >= MAP_WIDTH) {
       return false; // Out of bounds
     }
-    return mapData[y][x] === 0;
+    // Both 0 and 1 are walkable, just different speeds. We could add other non-walkable tile types here later.
+    return mapData[y][x] === 0 || mapData[y][x] === 1;
   }, [mapData]);
 
-  const moveCharacter = (dx: number, dy: number) => {
+  const moveCharacter = useCallback((dx: number, dy: number) => {
     const newX = characterPos.x + dx;
     const newY = characterPos.y + dy;
+
     if (isWalkable(newX, newY)) {
+      const tileType = mapData![newY][newX];
+      setMoveSpeed(tileType === 1 ? SLOW_MOVE_SPEED : FAST_MOVE_SPEED);
       setCharacterPos({ x: newX, y: newY });
     }
-  };
+  }, [characterPos, isWalkable, mapData]);
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     switch(event.key) {
@@ -86,6 +93,7 @@ export default function MapTestPage() {
   
   const resetPosition = () => {
     setCharacterPos({ x: 1, y: 1 });
+    setMoveSpeed(FAST_MOVE_SPEED);
   };
 
   const renderContent = () => {
@@ -96,6 +104,8 @@ export default function MapTestPage() {
       return <p className="text-destructive">Error: {error}</p>;
     }
     if (mapData) {
+      const currentTile = mapData[characterPos.y]?.[characterPos.x];
+
       return (
         <div className="flex flex-col md:flex-row gap-8 items-center">
             <div
@@ -114,18 +124,19 @@ export default function MapTestPage() {
                 <div className="absolute inset-0 grid" style={{gridTemplateColumns: `repeat(${MAP_WIDTH}, 1fr)`, gridTemplateRows: `repeat(${MAP_HEIGHT}, 1fr)`}}>
                     {mapData.flat().map((tile, index) => (
                         <div key={index} className={`
-                            ${tile === 1 ? 'bg-red-500/50' : 'bg-green-500/30'}
+                            ${tile === 1 ? 'bg-yellow-500/40' : 'bg-green-500/30'}
                         `}></div>
                     ))}
                 </div>
             )}
              <div
-              className="absolute transition-all duration-200 ease-in-out flex items-center justify-center"
+              className="absolute transition-all ease-in-out flex items-center justify-center"
               style={{
                 width: TILE_SIZE,
                 height: TILE_SIZE,
                 left: characterPos.x * TILE_SIZE,
                 top: characterPos.y * TILE_SIZE,
+                transitionDuration: `${moveSpeed}ms`,
               }}
             >
                 <User className="h-6 w-6 text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]" />
@@ -146,13 +157,13 @@ export default function MapTestPage() {
                 </Button>
                 <Button onClick={() => setShowCollision(s => !s)} variant="outline" size="sm">
                     {showCollision ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
-                    衝突判定を可視化
+                    移動速度を可視化
                 </Button>
              </div>
-             <div className="text-sm text-muted-foreground p-2 rounded-md border bg-muted">
+             <div className="text-sm text-muted-foreground p-2 rounded-md border bg-muted w-full text-center">
                 <p>Use arrow keys or WASD to move.</p>
                 <p>Current Position: ({characterPos.x}, {characterPos.y})</p>
-                <p>Walkable: {isWalkable(characterPos.x, characterPos.y) ? 'Yes' : 'No'}</p>
+                <p>Current Tile Type: {currentTile} ({currentTile === 1 ? 'Slow' : 'Fast'})</p>
              </div>
           </div>
         </div>

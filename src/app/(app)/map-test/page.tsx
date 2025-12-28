@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import { ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Home, User } from 'lucide-react';
 import Image from 'next/image';
 
-const MAP_WIDTH = 16;
-const MAP_HEIGHT = 9;
-const TILE_SIZE = 48; // The size of each tile in pixels
+const MAP_WIDTH = 160;
+const MAP_HEIGHT = 90;
+const TILE_SIZE = 8; // The size of each tile in pixels
 
 export default function MapTestPage() {
   const [mapData, setMapData] = useState<number[][] | null>(null);
@@ -118,7 +118,7 @@ export default function MapTestPage() {
                 top: characterPos.y * TILE_SIZE,
               }}
             >
-                <User className="h-8 w-8 text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]" />
+                <User className="h-6 w-6 text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]" />
              </div>
           </div>
           <div className="flex flex-col items-center gap-4">

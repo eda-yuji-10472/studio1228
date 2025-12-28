@@ -5,8 +5,9 @@ import { ImageToVideoForm } from './image-to-video-form';
 import { ImageToImageForm } from './image-to-image-form';
 import { CsvToImageForm } from './csv-to-image-form';
 import { ImageToSilhouetteForm } from './image-to-silhouette-form';
-import { Film, Image as ImageIcon, Wand2, FileText, Footprints, Grid } from 'lucide-react';
+import { Film, Image as ImageIcon, Wand2, FileText, Footprints, Grid, FileJson } from 'lucide-react';
 import { ImageGridSplitForm } from './image-grid-split-form';
+import { ImageToPatternForm } from './image-to-pattern-form';
 
 export default function CreatePage() {
   return (
@@ -17,7 +18,7 @@ export default function CreatePage() {
       />
       <main className="flex-1 p-6 pt-0">
         <Tabs defaultValue="text-to-video" className="w-full">
-          <TabsList className="grid w-full grid-cols-6 md:w-[1200px]">
+          <TabsList className="grid w-full grid-cols-7 md:w-[1400px]">
             <TabsTrigger value="text-to-video">
               <Film className="mr-2" />
               Text to Video
@@ -42,6 +43,10 @@ export default function CreatePage() {
               <Grid className="mr-2" />
               画像分割
             </TabsTrigger>
+            <TabsTrigger value="image-to-pattern">
+              <FileJson className="mr-2" />
+              Image to Pattern
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="text-to-video" className="mt-6">
             <TextToVideoForm />
@@ -60,6 +65,9 @@ export default function CreatePage() {
           </TabsContent>
           <TabsContent value="grid-split" className="mt-6">
             <ImageGridSplitForm />
+          </TabsContent>
+          <TabsContent value="image-to-pattern" className="mt-6">
+            <ImageToPatternForm />
           </TabsContent>
         </Tabs>
       </main>

@@ -6,13 +6,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { generateSilhouetteFromImage, GenerateSilhouetteFromImageOutput } from '@/ai/flows/generate-silhouette-from-image';
 import { useAppContext } from '@/contexts/app-context';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Sparkles, Upload, ArrowLeft, Footprints, FileJson, Download } from 'lucide-react';
+import { Loader2, Sparkles, Upload, ArrowLeft, Footprints, Download } from 'lucide-react';
 import Image from 'next/image';
 import { PromptSuggestions } from '@/components/shared/prompt-suggestions';
 import { useUser } from '@/firebase/auth/use-user';
@@ -34,7 +34,6 @@ export function ImageToSilhouetteForm() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { addPromptItem } = useAppContext();
   const { toast } = useToast();
   const { user, isLoading: isUserLoading } = useUser();
@@ -68,80 +67,9 @@ export function ImageToSilhouetteForm() {
     }
   };
 
-  const handleAnalyzeAndDownload = async () => {
+  const handleDownload = () => {
     if (!generatedImage) return;
-
-    setIsAnalyzing(true);
-    toast({ title: 'Analyzing Pattern...', description: 'Please wait while the image is analyzed.' });
-
-    try {
-      const gridCols = 160;
-      const gridRows = 90;
-
-      const img = new window.Image();
-      img.src = generatedImage;
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-      });
-
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      if (!ctx) throw new Error('Could not get canvas context');
-      
-      ctx.drawImage(img, 0, 0);
-
-      const cellWidth = canvas.width / gridCols;
-      const cellHeight = canvas.height / gridRows;
-      const pattern: number[][] = [];
-
-      for (let y = 0; y < gridRows; y++) {
-        const row: number[] = [];
-        for (let x = 0; x < gridCols; x++) {
-          const sx = Math.floor(x * cellWidth);
-          const sy = Math.floor(y * cellHeight);
-          const sw = Math.ceil(cellWidth);
-          const sh = Math.ceil(cellHeight);
-          
-          const imageData = ctx.getImageData(sx, sy, sw, sh);
-          const data = imageData.data;
-          let totalBrightness = 0;
-          let pixelCount = 0;
-
-          for (let i = 0; i < data.length; i += 4) {
-            // Only consider pixels with alpha > 0.5 to avoid transparent edges
-            if (data[i + 3] > 128) {
-              // RGB to brightness (0-255)
-              const brightness = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
-              totalBrightness += brightness;
-              pixelCount++;
-            }
-          }
-          
-          const avgBrightness = pixelCount > 0 ? totalBrightness / pixelCount : 255;
-          
-          // Use a threshold to decide. 128 is halfway between black (0) and white (255)
-          // 1 for black, 0 for white
-          row.push(avgBrightness < 128 ? 1 : 0);
-        }
-        pattern.push(row);
-      }
-      
-      const jsonString = JSON.stringify({ grid: pattern }, null, 2);
-      const blob = new Blob([jsonString], { type: 'application/json' });
-      saveAs(blob, 'pattern.json');
-
-      toast({ title: 'Success!', description: 'The image pattern has been downloaded as pattern.json' });
-
-    } catch (error: any) {
-      console.error('Analysis failed:', error);
-      toast({ variant: 'destructive', title: 'Analysis Failed', description: error.message });
-      await logError(error, { context: 'ImageToSilhouetteForm.handleAnalyzeAndDownload', userId: user?.uid });
-    } finally {
-      setIsAnalyzing(false);
-    }
+    saveAs(generatedImage, 'silhouette.png');
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -267,7 +195,7 @@ export function ImageToSilhouetteForm() {
         <Card className="max-w-2xl">
         <CardHeader>
           <CardTitle>Generation Complete</CardTitle>
-          <CardDescription>Your new silhouette has been successfully generated. You can now download the image or its pattern.</CardDescription>
+          <CardDescription>Your new silhouette has been successfully generated. You can now download the image.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-4">
            <div className="relative w-full max-w-md bg-white rounded-md" style={{ aspectRatio: '16 / 9' }}>
@@ -278,9 +206,9 @@ export function ImageToSilhouetteForm() {
                 <ArrowLeft className="mr-2" />
                 Generate Another
             </Button>
-            <Button onClick={handleAnalyzeAndDownload} type="button" variant="secondary" size="lg" disabled={isAnalyzing}>
-                {isAnalyzing ? <Loader2 className="mr-2 animate-spin" /> : <FileJson className="mr-2" />}
-                Save Pattern as JSON
+            <Button onClick={handleDownload} type="button" variant="secondary" size="lg">
+                <Download className="mr-2" />
+                Download Silhouette
             </Button>
            </div>
         </CardContent>

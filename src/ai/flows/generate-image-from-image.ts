@@ -61,7 +61,7 @@ const generateImageFromImageFlow = ai.defineFlow(
     }
 
     const {media, usage, custom, finishReason, safetyRatings} = await ai.generate({
-      model: googleAI.model('gemini-2.5-flash-image-preview'),
+      model: googleAI.model('gemini-3-pro-image-preview'),
       prompt: [
         {text: input.prompt},
         {media: {url: input.photoDataUri, contentType}},

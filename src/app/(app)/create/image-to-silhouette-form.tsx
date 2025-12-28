@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { generateSilhouetteFromImage, GenerateSilhouetteFromImageOutput } from '@/ai/flows/generate-silhouette-from-image';
 import { useAppContext } from '@/contexts/app-context';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Sparkles, Upload, Wand2, ArrowLeft, Footprints } from 'lucide-react';
+import { Loader2, Sparkles, Upload, ArrowLeft, Footprints, FileJson, Download } from 'lucide-react';
 import Image from 'next/image';
 import { PromptSuggestions } from '@/components/shared/prompt-suggestions';
 import { useUser } from '@/firebase/auth/use-user';
@@ -23,6 +23,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { logError } from '@/lib/logger';
 import * as mime from 'mime-types';
+import { saveAs } from 'file-saver';
 
 const formSchema = z.object({
   image: z.any().refine(file => file instanceof File, 'Please upload an image.'),
@@ -33,6 +34,7 @@ export function ImageToSilhouetteForm() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { addPromptItem } = useAppContext();
   const { toast } = useToast();
   const { user, isLoading: isUserLoading } = useUser();
@@ -63,6 +65,81 @@ export function ImageToSilhouetteForm() {
     const fileInput = document.getElementById('silhouette-image-upload-input') as HTMLInputElement;
     if (fileInput) {
       fileInput.value = '';
+    }
+  };
+
+  const handleAnalyzeAndDownload = async () => {
+    if (!generatedImage) return;
+
+    setIsAnalyzing(true);
+    toast({ title: 'Analyzing Pattern...', description: 'Please wait while the image is analyzed.' });
+
+    try {
+      const gridCols = 160;
+      const gridRows = 90;
+
+      const img = new window.Image();
+      img.src = generatedImage;
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) throw new Error('Could not get canvas context');
+      
+      ctx.drawImage(img, 0, 0);
+
+      const cellWidth = canvas.width / gridCols;
+      const cellHeight = canvas.height / gridRows;
+      const pattern: string[][] = [];
+
+      for (let y = 0; y < gridRows; y++) {
+        const row: string[] = [];
+        for (let x = 0; x < gridCols; x++) {
+          const sx = Math.floor(x * cellWidth);
+          const sy = Math.floor(y * cellHeight);
+          const sw = Math.ceil(cellWidth);
+          const sh = Math.ceil(cellHeight);
+          
+          const imageData = ctx.getImageData(sx, sy, sw, sh);
+          const data = imageData.data;
+          let totalBrightness = 0;
+          let pixelCount = 0;
+
+          for (let i = 0; i < data.length; i += 4) {
+            // Only consider pixels with alpha > 0.5 to avoid transparent edges
+            if (data[i + 3] > 128) {
+              // RGB to brightness (0-255)
+              const brightness = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
+              totalBrightness += brightness;
+              pixelCount++;
+            }
+          }
+          
+          const avgBrightness = pixelCount > 0 ? totalBrightness / pixelCount : 255;
+          
+          // Use a threshold to decide. 128 is halfway between black (0) and white (255)
+          row.push(avgBrightness < 128 ? 'black' : 'white');
+        }
+        pattern.push(row);
+      }
+      
+      const jsonString = JSON.stringify({ grid: pattern }, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      saveAs(blob, 'pattern.json');
+
+      toast({ title: 'Success!', description: 'The image pattern has been downloaded as pattern.json' });
+
+    } catch (error: any) {
+      console.error('Analysis failed:', error);
+      toast({ variant: 'destructive', title: 'Analysis Failed', description: error.message });
+      await logError(error, { context: 'ImageToSilhouetteForm.handleAnalyzeAndDownload', userId: user?.uid });
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -189,16 +266,22 @@ export function ImageToSilhouetteForm() {
         <Card className="max-w-2xl">
         <CardHeader>
           <CardTitle>Generation Complete</CardTitle>
-          <CardDescription>Your new silhouette has been successfully generated.</CardDescription>
+          <CardDescription>Your new silhouette has been successfully generated. You can now download the image or its pattern.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-4">
-           <div className="relative w-full max-w-md bg-[url('/transparent-bg.svg')] bg-repeat rounded-md" style={{ aspectRatio: '1 / 1' }}>
+           <div className="relative w-full max-w-md bg-white rounded-md" style={{ aspectRatio: '16 / 9' }}>
              <Image src={generatedImage} alt="Generated silhouette" fill className="object-contain" />
            </div>
-           <Button onClick={handleReset} type="button" variant="outline" size="lg">
-              <ArrowLeft className="mr-2" />
-              Generate Another
-          </Button>
+           <div className="flex gap-2">
+             <Button onClick={handleReset} type="button" variant="outline" size="lg">
+                <ArrowLeft className="mr-2" />
+                Generate Another
+            </Button>
+            <Button onClick={handleAnalyzeAndDownload} type="button" variant="secondary" size="lg" disabled={isAnalyzing}>
+                {isAnalyzing ? <Loader2 className="mr-2 animate-spin" /> : <FileJson className="mr-2" />}
+                Save Pattern as JSON
+            </Button>
+           </div>
         </CardContent>
       </Card>
     )
@@ -210,7 +293,7 @@ export function ImageToSilhouetteForm() {
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardHeader>
             <CardTitle>Image to Silhouette</CardTitle>
-            <CardDescription>Upload an image and describe which parts should be black and which should be white.</CardDescription>
+            <CardDescription>Upload an image and describe which parts should be black and which should be white. The final image will be pure black and white.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -237,14 +320,12 @@ export function ImageToSilhouetteForm() {
                     </FormItem>
                   )}
                 />
-                 <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted flex items-center justify-center bg-[url('/transparent-bg.svg')] bg-repeat">
+                 <div className="aspect-video w-full overflow-hidden rounded-lg border bg-white flex items-center justify-center">
                     {isGenerating ? (
                         <div className="flex flex-col items-center justify-center gap-4 p-4 rounded-lg bg-background/80">
                             <Loader2 className="h-8 w-8 animate-spin text-primary" />
                             <p className="text-sm text-muted-foreground">Generating silhouette...</p>
                         </div>
-                    ) : generatedImage ? (
-                       <Image src={generatedImage} alt="Generated silhouette" fill className="object-contain" />
                     ) : (
                         <div className="flex flex-col items-center justify-center text-center p-4">
                             <Footprints className="h-10 w-10 text-muted-foreground mb-2"/>
@@ -267,6 +348,9 @@ export function ImageToSilhouetteForm() {
                     {...field}
                     />
                 </FormControl>
+                <FormDescription>
+                Describe what should be black and what should be white. The AI will follow your instructions.
+                </FormDescription>
                 <FormMessage />
                 </FormItem>
             )}

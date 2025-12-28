@@ -19,6 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Button } from '../ui/button';
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { Skeleton } from '../ui/skeleton';
+import packageJson from '../../../package.json';
 
 function UserMenu() {
     const { user, isLoading } = useUser();
@@ -85,6 +86,7 @@ function UserMenu() {
 export function MainSidebar() {
   const pathname = usePathname();
   const isActive = (path: string) => pathname.startsWith(path);
+  const version = packageJson.version;
 
   return (
     <Sidebar collapsible="icon">
@@ -163,6 +165,9 @@ export function MainSidebar() {
       </SidebarContent>
       <SidebarFooter>
         <UserMenu />
+        <div className="p-2 text-center text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+          Ver {version}
+        </div>
       </SidebarFooter>
     </Sidebar>
   );

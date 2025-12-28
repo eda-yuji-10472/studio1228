@@ -4,7 +4,8 @@ import { TextToVideoForm } from './text-to-video-form';
 import { ImageToVideoForm } from './image-to-video-form';
 import { ImageToImageForm } from './image-to-image-form';
 import { CsvToImageForm } from './csv-to-image-form';
-import { Film, Image as ImageIcon, Wand2, FileText } from 'lucide-react';
+import { ImageToSilhouetteForm } from './image-to-silhouette-form';
+import { Film, Image as ImageIcon, Wand2, FileText, Footprints } from 'lucide-react';
 
 export default function CreatePage() {
   return (
@@ -15,7 +16,7 @@ export default function CreatePage() {
       />
       <main className="flex-1 p-6 pt-0">
         <Tabs defaultValue="text-to-video" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 md:w-[800px]">
+          <TabsList className="grid w-full grid-cols-5 md:w-[1000px]">
             <TabsTrigger value="text-to-video">
               <Film className="mr-2" />
               Text to Video
@@ -32,6 +33,10 @@ export default function CreatePage() {
               <FileText className="mr-2" />
               CSV to Text Image
             </TabsTrigger>
+            <TabsTrigger value="image-to-silhouette">
+              <Footprints className="mr-2" />
+              Image to Silhouette
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="text-to-video" className="mt-6">
             <TextToVideoForm />
@@ -45,10 +50,11 @@ export default function CreatePage() {
           <TabsContent value="csv-to-image" className="mt-6">
             <CsvToImageForm />
           </TabsContent>
+          <TabsContent value="image-to-silhouette" className="mt-6">
+            <ImageToSilhouetteForm />
+          </TabsContent>
         </Tabs>
       </main>
     </div>
   );
 }
-
-    

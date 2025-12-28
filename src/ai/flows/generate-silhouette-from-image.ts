@@ -52,9 +52,9 @@ const systemPrompt = `You are an expert at image processing. Your task is to tak
 You must identify the specified subject and create a new image that contains only the silhouette of that subject.
 
 The silhouette must be solid black (#000000).
-The background of the new image, and everything that is not part of the subject's silhouette, must be completely transparent.
+The background of the new image, and everything that is not part of the subject's silhouette, must be solid white (#FFFFFF).
 
-Do not include any other elements from the original image. Only the black silhouette on a transparent background.`;
+Do not include any other elements from the original image. Only the black silhouette on a solid white background.`;
 
 const generateSilhouetteFromImageFlow = ai.defineFlow(
   {

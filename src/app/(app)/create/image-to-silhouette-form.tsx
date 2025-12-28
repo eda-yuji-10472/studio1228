@@ -95,10 +95,10 @@ export function ImageToSilhouetteForm() {
 
       const cellWidth = canvas.width / gridCols;
       const cellHeight = canvas.height / gridRows;
-      const pattern: string[][] = [];
+      const pattern: number[][] = [];
 
       for (let y = 0; y < gridRows; y++) {
-        const row: string[] = [];
+        const row: number[] = [];
         for (let x = 0; x < gridCols; x++) {
           const sx = Math.floor(x * cellWidth);
           const sy = Math.floor(y * cellHeight);
@@ -123,7 +123,8 @@ export function ImageToSilhouetteForm() {
           const avgBrightness = pixelCount > 0 ? totalBrightness / pixelCount : 255;
           
           // Use a threshold to decide. 128 is halfway between black (0) and white (255)
-          row.push(avgBrightness < 128 ? 'black' : 'white');
+          // 1 for black, 0 for white
+          row.push(avgBrightness < 128 ? 1 : 0);
         }
         pattern.push(row);
       }

@@ -49,12 +49,13 @@ export async function generateSilhouetteFromImage(
 
 const systemPrompt = `You are an expert at image processing. Your task is to take a user-provided image and a prompt describing a subject within that image.
 
-You must identify the specified subject and create a new image that contains only the silhouette of that subject.
+You must perform the following steps precisely:
+1.  Identify the subject in the image based on the user's prompt (e.g., 'the horse', 'the person on the left').
+2.  Create a new image.
+3.  In the new image, draw the exact silhouette of the identified subject in solid black (#000000).
+4.  Make the entire rest of the image, including the background and any other objects, solid white (#FFFFFF).
 
-The silhouette must be solid black (#000000).
-The background of the new image, and everything that is not part of the subject's silhouette, must be solid white (#FFFFFF).
-
-Do not include any other elements from the original image. Only the black silhouette on a solid white background.`;
+The final output must be a clean, two-color image containing only the black silhouette on a solid white background. Do not include any shades, gradients, or other elements from the original image.`;
 
 const generateSilhouetteFromImageFlow = ai.defineFlow(
   {

@@ -17,7 +17,7 @@ const GenerateSilhouetteFromImageInputSchema = z.object({
     .describe(
       "A source photo, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
     ),
-  prompt: z.string().describe('A description of the subject to be turned into a silhouette.'),
+  prompt: z.string().describe('A detailed description of what to make black and what to make white.'),
 });
 export type GenerateSilhouetteFromImageInput = z.infer<
   typeof GenerateSilhouetteFromImageInputSchema
@@ -47,20 +47,17 @@ export async function generateSilhouetteFromImage(
   return generateSilhouetteFromImageFlow(input);
 }
 
-const systemPrompt = `You are an expert at image processing. Your task is to create a two-color silhouette image from a user's photo and prompt.
+const systemPrompt = `You are an expert at image processing. Your task is to create a two-color image from a user's photo and a set of instructions.
 
 **CRITICAL RULE: The final output MUST be a pure black and white image. There are no exceptions.**
-- The silhouette of the subject MUST be solid black (#000000).
-- EVERYTHING else (background, other objects, etc.) MUST be solid white (#FFFFFF).
+- Use solid black (#000000) and solid white (#FFFFFF) only.
 - Do NOT use any shades of gray, anti-aliasing, gradients, or any other colors.
 
-Follow these steps precisely:
-1.  Identify the subject in the image based on the user's prompt (e.g., 'the horse', 'the person on the left').
-2.  Create a new image.
-3.  In the new image, draw the exact silhouette of the identified subject in solid black (#000000).
-4.  Make the entire rest of the image, including the background and any other objects, solid white (#FFFFFF).
+Your primary goal is to follow the user's instructions on what parts of the image to make black and what parts to make white. The user's prompt is the source of truth.
 
-The final image must contain ONLY two colors: black for the silhouette and white for everything else.`;
+For example, if the user says "make the horse black and the background white", you will do exactly that. If they say "make the horse's body white and its legs black, with a white background", you will follow that instruction.
+
+Analyze the user's prompt and the provided image, then generate a new image that strictly adheres to both the user's instructions and the critical black-and-white-only rule.`;
 
 const generateSilhouetteFromImageFlow = ai.defineFlow(
   {
@@ -78,7 +75,7 @@ const generateSilhouetteFromImageFlow = ai.defineFlow(
       model: googleAI.model('gemini-2.5-flash-image-preview'),
       prompt: [
         {text: systemPrompt},
-        {text: `Subject to isolate: ${input.prompt}`},
+        {text: `User instructions: ${input.prompt}`},
         {media: {url: input.photoDataUri, contentType}},
       ],
       config: {

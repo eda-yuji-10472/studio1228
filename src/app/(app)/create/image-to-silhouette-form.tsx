@@ -210,7 +210,7 @@ export function ImageToSilhouetteForm() {
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardHeader>
             <CardTitle>Image to Silhouette</CardTitle>
-            <CardDescription>Upload an image and describe the subject you want to isolate as a black silhouette.</CardDescription>
+            <CardDescription>Upload an image and describe which parts should be black and which should be white.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -259,10 +259,10 @@ export function ImageToSilhouetteForm() {
             name="prompt"
             render={({ field }) => (
                 <FormItem>
-                <FormLabel>Subject Description</FormLabel>
+                <FormLabel>Black and White Instructions</FormLabel>
                 <FormControl>
                     <Textarea 
-                    placeholder="e.g., 'the running horse', 'a person waving', 'the blue car'" 
+                    placeholder="e.g., 'Make the running horse black and everything else white.' or 'Make the horse's body white and its legs black, with a white background.'" 
                     className="min-h-[100px] resize-y" 
                     {...field}
                     />

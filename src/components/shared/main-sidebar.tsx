@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/sidebar';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Library, PlusCircle, Scissors, Bot, User as UserIcon, LogOut, Beaker, Flame } from 'lucide-react';
+import { Library, PlusCircle, Scissors, Bot, User as UserIcon, LogOut, Beaker, Flame, Map } from 'lucide-react';
 import { auth } from '@/firebase';
 import { useUser } from '@/firebase/auth/use-user';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
@@ -156,6 +156,18 @@ export function MainSidebar() {
                   >
                     <Flame />
                     <span className="truncate">Firestore Test</span>
+                  </SidebarMenuButton>
+                </Link>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <Link href="/map-test" passHref>
+                  <SidebarMenuButton
+                    isActive={isActive('/map-test')}
+                    tooltip="Map Test"
+                    variant="ghost"
+                  >
+                    <Map />
+                    <span className="truncate">Map Test</span>
                   </SidebarMenuButton>
                 </Link>
               </SidebarMenuItem>
